@@ -3,6 +3,8 @@ import BlockShape from './BlockShape.js';
 
 interface Props {
   pieces: (BlockPiece | null)[];
+  draggedPieceId: string | null;
+  dragPos: { x: number; y: number } | null;
   onDragStart: (piece: BlockPiece) => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: (clientX: number, clientY: number) => void;
@@ -10,6 +12,8 @@ interface Props {
 
 export default function BlockTray({
   pieces,
+  draggedPieceId,
+  dragPos,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -26,6 +30,8 @@ export default function BlockTray({
             <BlockShape
               piece={piece}
               isDraggable
+              isDragging={draggedPieceId === piece.id}
+              dragPos={draggedPieceId === piece.id ? dragPos ?? undefined : undefined}
               onDragStart={onDragStart}
               onDragMove={onDragMove}
               onDragEnd={onDragEnd}

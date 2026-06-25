@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { BlockPiece } from '../lib/game/types.js';
 
 interface Props {
@@ -43,6 +44,7 @@ export default function BlockShape({
   onDragMove,
   onDragEnd,
 }: Props) {
+  const isPointerDown = useRef(false);
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
@@ -66,18 +68,20 @@ export default function BlockShape({
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable) return;
     e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    isPointerDown.current = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     onDragStart?.(piece);
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!isDraggable || !isDragging) return;
+    if (!isDraggable || !isPointerDown.current) return;
     onDragMove?.(e.clientX, e.clientY);
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    if (!isDraggable) return;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    if (!isDraggable || !isPointerDown.current) return;
+    isPointerDown.current = false;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     onDragEnd?.(e.clientX, e.clientY);
   }
 
