@@ -17,10 +17,14 @@ function ScoreBlock({ label, value }: { label: string; value: number | string })
 export default function ScoreBoard({ score, bestScore, combo, streak }: Props) {
   return (
     <div className="score-board" aria-label="Score display">
-      <ScoreBlock label="SCORE" value={score} />
-      <ScoreBlock label="BEST" value={bestScore} />
-      <ScoreBlock label="COMBO" value={combo} />
-      <ScoreBlock label="STREAK" value={streak} />
+      <div className="score-board-left">
+        <ScoreBlock label="SCORE" value={score} />
+        <ScoreBlock label="BEST" value={bestScore} />
+      </div>
+      <div className="score-board-right">
+        <ScoreBlock label="COMBO" value={combo} />
+        <ScoreBlock label="STREAK" value={streak} />
+      </div>
     </div>
   );
 }

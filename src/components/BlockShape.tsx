@@ -22,6 +22,17 @@ const COLOR_MAP: Record<string, string> = {
   pink: 'var(--block-pink)',
 };
 
+const GLOW_MAP: Record<string, string> = {
+  red: 'rgba(255, 56, 96, 0.45)',
+  orange: 'rgba(255, 140, 0, 0.45)',
+  yellow: 'rgba(255, 212, 0, 0.5)',
+  green: 'rgba(0, 230, 118, 0.45)',
+  cyan: 'rgba(0, 224, 255, 0.45)',
+  blue: 'rgba(0, 82, 255, 0.45)',
+  purple: 'rgba(168, 85, 247, 0.45)',
+  pink: 'rgba(255, 79, 216, 0.45)',
+};
+
 export default function BlockShape({
   piece,
   size = 28,
@@ -70,6 +81,8 @@ export default function BlockShape({
     onDragEnd?.(e.clientX, e.clientY);
   }
 
+  const glowColor = GLOW_MAP[piece.color ?? ""] ?? 'rgba(255,255,255,0.2)';
+
   return (
     <div
       className="block-shape"
@@ -80,7 +93,7 @@ export default function BlockShape({
     >
       {piece.shape.map((row, r) =>
         row.map((filled, c) => {
-          const bg = filled ? COLOR_MAP[piece.color ?? ''] ?? 'transparent' : 'transparent';
+          const bg = filled ? COLOR_MAP[piece.color ?? ""] ?? 'transparent' : 'transparent';
           return (
             <div
               key={`${r}-${c}`}
@@ -90,6 +103,7 @@ export default function BlockShape({
                 height: size,
                 background: bg,
                 borderRadius: 2,
+                boxShadow: filled ? `0 0 8px ${glowColor}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
               }}
             />
           );
