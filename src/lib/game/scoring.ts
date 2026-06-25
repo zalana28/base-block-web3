@@ -1,20 +1,14 @@
 export function calculateScore(
-  cellsPlaced: number,
+  placedCells: number,
   cellsCleared: number,
   isCombo: boolean,
-  comboCount: number,
+  linesCleared: number,
   streak: number,
 ): number {
-  let score = cellsPlaced * 10;
-  if (cellsCleared > 0) {
-    score += cellsCleared * 50;
-  }
-  if (isCombo) {
-    score += comboCount * 100; // bonus per extra line
-  }
-  if (streak > 1) {
-    score += (streak - 1) * 25; // streak bonus
-  }
+  let score = placedCells;          // +1 per sel ditempatkan
+  score += cellsCleared * 10;       // +10 per sel cleared
+  if (isCombo) score += linesCleared * 20; // bonus combo (multi-line)
+  if (streak > 0) score += streak * 5;     // bonus streak
   return score;
 }
 

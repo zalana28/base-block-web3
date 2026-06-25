@@ -15,94 +15,104 @@ export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
-  // Drag state
+  // State yang perlu trigger render
   const [dragPiece, setDragPiece] = useState<BlockPiece | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const isDraggingRef = useRef(false);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [ghostPos, setGhostPos] = useState<Position | null>(null);
   const [isGhostValid, setIsGhostValid] = useState(false);
+
+  // Refs untuk drag state internal (tidak trigger render)
+  const isDraggingRef = useRef(false);
+  const dragPieceRef = useRef<BlockPiece | null>(null);
   const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
+  const boardCellSizeRef = useRef(28);
   const rafRef = useRef<number | null>(null);
 
-  // Clearing animation state
+  // (clearing animation, opsional — bisa di-wire kemudian)
   const [clearingRows] = useState<number[]>([]);
   const [clearingCols] = useState<number[]>([]);
 
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
 
-  // Sync isDragging state -> ref so callbacks always see the latest value
   useEffect(() => {
-    isDraggingRef.current = isDragging;
-  }, [isDragging]);
-
-  useEffect(() => {
-    if (gameState.phase === "over") {
-      setPhase("over");
-    }
+    if (gameState.phase === "over") setPhase("over");
   }, [gameState.phase]);
 
-  const handleDragStart = useCallback((piece: BlockPiece, anchorRow: number, anchorCol: number) => {
-    setDragPiece(piece);
-    setIsDragging(true);
-    setDragPos(null);
-    setGhostPos(null);
-    setIsGhostValid(false);
-    grabOffsetRef.current = { row: anchorRow, col: anchorCol };
-    if (boardRef.current) {
-      const rect = boardRef.current.getBoundingClientRect();
-      boardCellSizeRef.current = rect.width / 8;
-    }
-  }, []);
+  const handleDragStart = useCallback(
+    (piece: BlockPiece, anchorRow: number, anchorCol: number) => {
+      if (boardRef.current) {
+        const rect = boardRef.current.getBoundingClientRect();
+        boardCellSizeRef.current = rect.width / 8;
+      }
+      isDraggingRef.current = true;
+      dragPieceRef.current = piece;
+      grabOffsetRef.current = { row: anchorRow, col: anchorCol };
+      setDragPiece(piece);
+      setDragPos(null);
+      setGhostPos(null);
+      setIsGhostValid(false);
+    },
+    [],
+  );
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
-      if (!isDraggingRef.current || !dragPiece || !boardRef.current) return;
+      if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
-        if (!boardRef.current) return;
+        rafRef.current = null;
+        if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
+        const piece = dragPieceRef.current;
+        const grab = grabOffsetRef.current;
         const rect = boardRef.current.getBoundingClientRect();
         const cellSize = boardCellSizeRef.current;
-        const col = Math.floor((clientX - rect.left) / cellSize) - grabOffsetRef.current.col;
-        const row = Math.floor((clientY - rect.top) / cellSize) - grabOffsetRef.current.row;
+
+        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
+        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
         const pos = { row, col };
+
         setGhostPos(pos);
-        setIsGhostValid(canPlace(gameState.grid, dragPiece.shape, pos));
-        // Floating piece follows pointer with grab-cell-centered offset
+        setIsGhostValid(canPlace(gameState.grid, piece.shape, pos));
         setDragPos({
-          x: clientX - grabOffsetRef.current.col * cellSize - cellSize / 2,
-          y: clientY - grabOffsetRef.current.row * cellSize - cellSize / 2,
+          x: clientX - grab.col * cellSize - cellSize / 2,
+          y: clientY - grab.row * cellSize - cellSize / 2,
         });
       });
     },
-    [dragPiece, gameState.grid],
+    [gameState.grid],
   );
 
   const handleDragEnd = useCallback(
-    (_clientX: number, _clientY: number) => {
+    (clientX: number, clientY: number) => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      if (isDraggingRef.current && dragPiece && boardRef.current) {
+
+      if (isDraggingRef.current && dragPieceRef.current && boardRef.current) {
+        const piece = dragPieceRef.current;
+        const grab = grabOffsetRef.current;
         const rect = boardRef.current.getBoundingClientRect();
         const cellSize = boardCellSizeRef.current;
-        const col = Math.floor((_clientX - rect.left) / cellSize) - grabOffsetRef.current.col;
-        const row = Math.floor((_clientY - rect.top) / cellSize) - grabOffsetRef.current.row;
+        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
+        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
         const pos = { row, col };
-        if (canPlace(gameState.grid, dragPiece.shape, pos)) {
-          actions.placePiece(dragPiece, pos);
+
+        if (canPlace(gameState.grid, piece.shape, pos)) {
+          actions.placePiece(piece, pos);
         }
       }
-      setIsDragging(false);
+
+      isDraggingRef.current = false;
+      dragPieceRef.current = null;
+      grabOffsetRef.current = { row: 0, col: 0 };
       setDragPiece(null);
       setDragPos(null);
       setGhostPos(null);
       setIsGhostValid(false);
-      grabOffsetRef.current = { row: 0, col: 0 };
     },
-    [dragPiece, gameState.grid, actions],
+    [gameState.grid, actions],
   );
 
   const handleStartGame = useCallback(() => {
@@ -114,9 +124,6 @@ export default function App() {
     actions.resetGame();
     setPhase("wallet");
   }, [actions]);
-
-  // Board cellSize captured at drag start so tray floating piece matches grid without re-renders
-  const boardCellSizeRef = useRef(28);
 
   if (showLeaderboard) {
     return <Leaderboard onClose={() => setShowLeaderboard(false)} />;
@@ -142,27 +149,13 @@ export default function App() {
     );
   }
 
-  // Playing screen
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "0px",
-        padding: "8px",
-        width: "100%",
-        position: "relative",
-      }}
-    >
-      {/* Header */}
+    <div className="game-screen">
       <div className="game-header">
         <div className="game-header-title">BASE BLOCK</div>
         <div className="game-header-subtitle">ON BASE NETWORK</div>
       </div>
 
-      {/* Score board outside grid */}
       <ScoreBoard
         score={gameState.score}
         bestScore={gameState.bestScore}
@@ -170,10 +163,9 @@ export default function App() {
         streak={gameState.streak}
       />
 
-      {/* Game board — boardRef passed directly to GameBoard */}
       <GameBoard
         grid={gameState.grid}
-        ghostPiece={isDragging ? dragPiece : null}
+        ghostPiece={dragPiece}
         ghostPos={ghostPos}
         isGhostValid={isGhostValid}
         clearingRows={clearingRows}
@@ -181,7 +173,6 @@ export default function App() {
         boardRef={boardRef}
       />
 
-      {/* Block tray */}
       <BlockTray
         pieces={gameState.pieces}
         draggedPieceId={dragPiece?.id ?? null}
@@ -192,11 +183,7 @@ export default function App() {
         onDragEnd={handleDragEnd}
       />
 
-      {/* Leaderboard button */}
-      <button
-        className="btn-small"
-        onClick={() => setShowLeaderboard(true)}
-      >
+      <button className="btn-small" onClick={() => setShowLeaderboard(true)}>
         🏆 LEADERBOARD
       </button>
     </div>

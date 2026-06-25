@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generatePiece, generateThreePieces, getShapeSize } from '../generator.js';
+import { generatePiece, generateTrayBatch, generateThreePieces, getShapeSize } from '../generator.js';
 
 describe('generator', () => {
   it('generates a piece with shape and color', () => {
@@ -9,10 +9,17 @@ describe('generator', () => {
     expect(p.color).toBeTruthy();
   });
 
-  it('generates 3 unique pieces', () => {
+  it('generates 3 unique pieces via generateThreePieces', () => {
     const pieces = generateThreePieces();
     expect(pieces).toHaveLength(3);
     expect(new Set(pieces.map((p) => p.id)).size).toBe(3);
+  });
+
+  it('generates tray batch with 3 slots', () => {
+    const batch = generateTrayBatch();
+    expect(batch).toHaveLength(3);
+    expect(batch.every((p) => p !== undefined)).toBe(true);
+    expect(new Set(batch.map((p) => p?.id).filter(Boolean)).size).toBe(3);
   });
 
   it('getShapeSize returns correct dimensions', () => {

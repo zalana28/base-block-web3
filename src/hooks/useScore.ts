@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
-const BEST_SCORE_KEY = 'base-block-best';
+const STORAGE_KEY = 'base-block-best';
 
 export function useScore(): {
   score: number;
@@ -9,33 +9,27 @@ export function useScore(): {
   reset: () => void;
 } {
   const [score, setScore] = useState(0);
-  const [bestScore, setBestScore] = useState(0);
+  const [bestScore, setBestScore] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem(STORAGE_KEY);
+      return v ? parseInt(v, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
 
   useEffect(() => {
-    const stored = localStorage.getItem(BEST_SCORE_KEY);
-    if (stored) {
-      const parsed = parseInt(stored, 10);
-      if (!isNaN(parsed)) setBestScore(parsed);
+    if (score > bestScore) {
+      setBestScore(score);
+      try { localStorage.setItem(STORAGE_KEY, String(score)); } catch {}
     }
-  }, []);
+  }, [score, bestScore]);
 
   const addScore = useCallback((points: number) => {
-    setScore((prev) => {
-      const next = prev + points;
-      setBestScore((currentBest) => {
-        if (next > currentBest) {
-          localStorage.setItem(BEST_SCORE_KEY, String(next));
-          return next;
-        }
-        return currentBest;
-      });
-      return next;
-    });
+    setScore((s) => s + points);
   }, []);
 
-  const reset = useCallback(() => {
-    setScore(0);
-  }, []);
+  const reset = useCallback(() => { setScore(0); }, []);
 
   return { score, bestScore, addScore, reset };
 }
