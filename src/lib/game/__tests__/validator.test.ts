@@ -2,20 +2,26 @@ import { describe, it, expect } from 'vitest';
 import type { CellColor } from '../types.js';
 import { createGrid } from '../grid.js';
 import { generatePiece, generateThreePieces } from '../generator.js';
-import { canPlaceAny, canPlaceAnyOfPieces } from '../validator.js';
+import { canPlaceAny, canPlaceAnyOfPieces, canPlaceShapeAnywhere } from '../validator.js';
 
 describe('validator', () => {
+  it('canPlaceShapeAnywhere true when space exists', () => {
+    const grid = createGrid();
+    const p = generatePiece();
+    expect(canPlaceShapeAnywhere(grid, p.shape)).toBe(true);
+  });
+
+  it('canPlaceShapeAnywhere false when grid full', () => {
+    let grid = createGrid();
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) grid[r][c] = 'red';
+    const p = generatePiece();
+    expect(canPlaceShapeAnywhere(grid, p.shape)).toBe(false);
+  });
+
   it('canPlaceAny true when space exists', () => {
     const grid = createGrid();
     const p = generatePiece();
     expect(canPlaceAny(grid, p)).toBe(true);
-  });
-
-  it('canPlaceAny false when grid full', () => {
-    let grid = createGrid();
-    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) grid[r][c] = 'red';
-    const p = generatePiece();
-    expect(canPlaceAny(grid, p)).toBe(false);
   });
 
   it('canPlaceAnyOfPieces false when none fit', () => {

@@ -1,5 +1,5 @@
-import type { BlockPiece } from "../lib/game/types.js";
-import BlockShape from "./BlockShape.js";
+import type { BlockPiece } from '../lib/game/types.js';
+import BlockShape from './BlockShape.js';
 
 interface Props {
   pieces: (BlockPiece | null)[];
@@ -12,23 +12,17 @@ interface Props {
 }
 
 export default function BlockTray({
-  pieces,
-  draggedPieceId,
-  dragPos,
-  cellSize = 28,
-  onDragStart,
-  onDragMove,
-  onDragEnd,
+  pieces, draggedPieceId, dragPos, cellSize = 28,
+  onDragStart, onDragMove, onDragEnd,
 }: Props) {
   return (
     <div className="block-tray" aria-label="Block tray">
       {pieces.map((piece, i) => {
-        const isDragged = draggedPieceId === piece?.id;
-        const pieceDragPos = isDragged ? dragPos ?? undefined : undefined;
+        const isDragged = piece ? draggedPieceId === piece.id : false;
         return (
           <div
-            key={i}
-            className={`tray-slot${piece ? " filled" : ""}`}
+            key={piece?.id ?? `slot-${i}`}
+            className={`tray-slot${piece ? ' filled' : ''}${isDragged ? ' dragging' : ''}`}
             aria-label={piece ? `Piece ${i + 1}: ${piece.name}` : `Empty slot ${i + 1}`}
           >
             {piece ? (
@@ -37,7 +31,7 @@ export default function BlockTray({
                 size={isDragged ? cellSize : 28}
                 isDraggable
                 isDragging={isDragged}
-                dragPos={pieceDragPos}
+                dragPos={isDragged ? dragPos : null}
                 onDragStart={onDragStart}
                 onDragMove={onDragMove}
                 onDragEnd={onDragEnd}

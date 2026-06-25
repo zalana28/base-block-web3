@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { generateThreePieces } from '../lib/game/generator.js';
+import { generateTrayBatch } from '../lib/game/generator.js';
 import type { BlockPiece } from '../lib/game/types.js';
 
 export function useBlockGenerator(): {
@@ -8,14 +8,14 @@ export function useBlockGenerator(): {
   markUsed: (id: string) => void;
   clearAll: () => void;
 } {
-  const [pieces, setPieces] = useState<(BlockPiece | null)[]>(() => generateThreePieces());
+  const [pieces, setPieces] = useState<(BlockPiece | null)[]>(() => generateTrayBatch());
 
   const regenerate = useCallback(() => {
-    setPieces(generateThreePieces());
+    setPieces(generateTrayBatch());
   }, []);
 
   const markUsed = useCallback((id: string) => {
-    setPieces((prev) => prev.map((p) => (p?.id === id ? null : p)));
+    setPieces((curr) => curr.map((p) => (p?.id === id ? null : p)));
   }, []);
 
   const clearAll = useCallback(() => {
