@@ -21,7 +21,7 @@ export default function BlockTray({
         const isDragged = piece ? draggedPieceId === piece.id : false;
         return (
           <div
-            key={piece?.id ?? `slot-${i}`}
+            key={`slot-${i}`}
             className={`tray-slot${piece ? ' filled' : ''}${isDragged ? ' dragging' : ''}`}
             aria-label={piece ? `Piece ${i + 1}: ${piece.name}` : `Empty slot ${i + 1}`}
           >

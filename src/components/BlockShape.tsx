@@ -48,7 +48,8 @@ export default function BlockShape({
   // Captured element: stays in tray, keeps pointer capture, never switches layout mode
   const captureStyle: React.CSSProperties = {
     ...trayStyle,
-    visibility: isDragging && dragPos ? 'hidden' : undefined,
+    opacity: isDragging && dragPos ? 0 : undefined,
+    pointerEvents: isDragging && dragPos ? 'auto' : undefined,
   };
 
   // Floating clone: follows cursor, no pointer events (visual only)
@@ -71,13 +72,11 @@ export default function BlockShape({
     isPointerDown.current = true;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const cellW = rect.width / Math.max(1, cols);
-    const cellH = rect.height / Math.max(1, rows);
-    const anchorCol = Math.floor((e.clientX - rect.left) / cellW);
-    const anchorRow = Math.floor((e.clientY - rect.top) / cellH);
-    const ar = Math.max(0, Math.min(rows - 1, anchorRow));
+    // Hindari getBoundingClientRect() yang bisa trigger layout flush
+    const anchorCol = Math.floor((e.nativeEvent as PointerEvent).offsetX / size);
+    const anchorRow = Math.floor((e.nativeEvent as PointerEvent).offsetY / size);
     const ac = Math.max(0, Math.min(cols - 1, anchorCol));
+    const ar = Math.max(0, Math.min(rows - 1, anchorRow));
     onDragStart?.(piece, ar, ac, e.clientX, e.clientY);
   }
 

@@ -34,6 +34,7 @@ export default function App() {
   const dragPieceRef = useRef<BlockPiece | null>(null);
   const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
   const boardCellSizeRef = useRef(28);
+  const boardRectRef = useRef<DOMRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
   // (clearing animation, opsional — bisa di-wire kemudian)
@@ -46,6 +47,16 @@ export default function App() {
   useEffect(() => {
     if (gameState.phase === "over") setPhase("over");
   }, [gameState.phase]);
+
+  // Invalidate cached board rect on resize biar cell size tetap akurat
+  useEffect(() => {
+    function onResize() {
+      boardRectRef.current = null;
+      boardCellSizeRef.current = 28;
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
@@ -77,10 +88,10 @@ export default function App() {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
+        if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
         const piece = dragPieceRef.current;
         const grab = grabOffsetRef.current;
-        const rect = boardRef.current.getBoundingClientRect();
+        const rect = boardRectRef.current;
         const cellSize = boardCellSizeRef.current;
 
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
@@ -109,10 +120,11 @@ export default function App() {
         rafRef.current = null;
       }
 
-      if (isDraggingRef.current && dragPieceRef.current && boardRef.current) {
+      if (isDraggingRef.current && dragPieceRef.current) {
         const piece = dragPieceRef.current;
         const grab = grabOffsetRef.current;
-        const rect = boardRef.current.getBoundingClientRect();
+        const rect = boardRectRef.current;
+        if (!rect) return;
         const cellSize = boardCellSizeRef.current;
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
