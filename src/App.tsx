@@ -44,6 +44,12 @@ export default function App() {
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
 
+  // Ref untuk grid — hindari stale closure di RAF
+  const gridRef = useRef(gameState.grid);
+  useEffect(() => {
+    gridRef.current = gameState.grid;
+  }, [gameState.grid]);
+
   useEffect(() => {
     if (gameState.phase === "over") setPhase("over");
   }, [gameState.phase]);
@@ -58,11 +64,29 @@ export default function App() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, []);
+
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
+      // Cancel any pending RAF from previous drag
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
       if (boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
         boardCellSizeRef.current = rect.width / 8;
+        // FIX: Save rect ke ref biar handleDragMove bisa pakai
+        boardRectRef.current = rect;
       }
       isDraggingRef.current = true;
       dragPieceRef.current = piece;
@@ -86,9 +110,12 @@ export default function App() {
     (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
+        // FIX: Cek boardRectRef.current setelah di-set di handleDragStart
         if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
+        
         const piece = dragPieceRef.current;
         const grab = grabOffsetRef.current;
         const rect = boardRectRef.current;
@@ -102,15 +129,19 @@ export default function App() {
           x: clientX - grab.col * cellSize - cellSize / 2,
           y: clientY - grab.row * cellSize - cellSize / 2,
         };
+
+        // FIX: Pakai gridRef.current biar selalu dapet grid terbaru (hindari stale closure)
+        const isValid = canPlace(gridRef.current, piece.shape, pos);
+
         setDragState((prev) => ({
           ...prev,
           pos: dragPos,
           ghost: pos,
-          ghostValid: canPlace(gameState.grid, piece.shape, pos),
+          ghostValid: isValid,
         }));
       });
     },
-    [gameState.grid],
+    [], // Dependency kosong karena pakai refs, bukan state
   );
 
   const handleDragEnd = useCallback(
@@ -130,7 +161,8 @@ export default function App() {
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
         const pos = { row, col };
 
-        if (canPlace(gameState.grid, piece.shape, pos)) {
+        // Pakai gridRef.current untuk consistency
+        if (canPlace(gridRef.current, piece.shape, pos)) {
           actions.placePiece(piece, pos);
         }
       }
@@ -140,7 +172,7 @@ export default function App() {
       grabOffsetRef.current = { row: 0, col: 0 };
       setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
     },
-    [gameState.grid, actions],
+    [actions],
   );
 
   const handleStartGame = useCallback(() => {
