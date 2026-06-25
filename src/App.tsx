@@ -18,6 +18,7 @@ export default function App() {
   // Drag state
   const [dragPiece, setDragPiece] = useState<BlockPiece | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [ghostPos, setGhostPos] = useState<Position | null>(null);
   const [isGhostValid, setIsGhostValid] = useState(false);
 
@@ -37,6 +38,7 @@ export default function App() {
   const handleDragStart = useCallback((piece: BlockPiece) => {
     setDragPiece(piece);
     setIsDragging(true);
+    setDragPos(null);
     setGhostPos(null);
     setIsGhostValid(false);
   }, []);
@@ -53,6 +55,10 @@ export default function App() {
       const pos = { row: clampedRow, col: clampedCol };
       setGhostPos(pos);
       setIsGhostValid(canPlace(gameState.grid, dragPiece.shape, pos));
+      setDragPos({
+        x: clientX - (dragPiece.shape[0]?.length ?? 0) * 14,
+        y: clientY - dragPiece.shape.length * 14,
+      });
     },
     [isDragging, dragPiece, gameState.grid],
   );
@@ -70,6 +76,7 @@ export default function App() {
       }
       setIsDragging(false);
       setDragPiece(null);
+      setDragPos(null);
       setGhostPos(null);
       setIsGhostValid(false);
     },
@@ -139,11 +146,7 @@ export default function App() {
       />
 
       {/* Game board */}
-      <div
-        ref={boardRef}
-        onPointerMove={isDragging ? (e) => handleDragMove(e.clientX, e.clientY) : undefined}
-        onPointerUp={isDragging ? (e) => handleDragEnd(e.clientX, e.clientY) : undefined}
-      >
+      <div ref={boardRef}>
         <GameBoard
           grid={gameState.grid}
           ghostPiece={isDragging ? dragPiece : null}
@@ -157,6 +160,8 @@ export default function App() {
       {/* Block tray */}
       <BlockTray
         pieces={gameState.pieces}
+        draggedPieceId={dragPiece?.id ?? null}
+        dragPos={dragPos}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
