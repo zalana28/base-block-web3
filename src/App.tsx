@@ -15,17 +15,26 @@ export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
-  // State yang perlu trigger render
-  const [dragPiece, setDragPiece] = useState<BlockPiece | null>(null);
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
-  const [ghostPos, setGhostPos] = useState<Position | null>(null);
-  const [isGhostValid, setIsGhostValid] = useState(false);
+  // Drag state — batched dalam satu object untuk hindari re-render cascade
+  interface DragState {
+    piece: BlockPiece | null;
+    pos: { x: number; y: number } | null;
+    ghost: Position | null;
+    ghostValid: boolean;
+  }
+  const [dragState, setDragState] = useState<DragState>({
+    piece: null,
+    pos: null,
+    ghost: null,
+    ghostValid: false,
+  });
 
   // Refs untuk drag state internal (tidak trigger render)
   const isDraggingRef = useRef(false);
   const dragPieceRef = useRef<BlockPiece | null>(null);
   const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
   const boardCellSizeRef = useRef(28);
+  const boardRectRef = useRef<DOMRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
   // (clearing animation, opsional — bisa di-wire kemudian)
@@ -39,8 +48,18 @@ export default function App() {
     if (gameState.phase === "over") setPhase("over");
   }, [gameState.phase]);
 
+  // Invalidate cached board rect on resize biar cell size tetap akurat
+  useEffect(() => {
+    function onResize() {
+      boardRectRef.current = null;
+      boardCellSizeRef.current = 28;
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const handleDragStart = useCallback(
-    (piece: BlockPiece, anchorRow: number, anchorCol: number) => {
+    (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
       if (boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
         boardCellSizeRef.current = rect.width / 8;
@@ -48,10 +67,17 @@ export default function App() {
       isDraggingRef.current = true;
       dragPieceRef.current = piece;
       grabOffsetRef.current = { row: anchorRow, col: anchorCol };
-      setDragPiece(piece);
-      setDragPos(null);
-      setGhostPos(null);
-      setIsGhostValid(false);
+      const cellSize = boardCellSizeRef.current;
+      const grab = grabOffsetRef.current;
+      setDragState({
+        piece,
+        pos: {
+          x: clientX - grab.col * cellSize - cellSize / 2,
+          y: clientY - grab.row * cellSize - cellSize / 2,
+        },
+        ghost: null,
+        ghostValid: false,
+      });
     },
     [],
   );
@@ -62,22 +88,26 @@ export default function App() {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
+        if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
         const piece = dragPieceRef.current;
         const grab = grabOffsetRef.current;
-        const rect = boardRef.current.getBoundingClientRect();
+        const rect = boardRectRef.current;
         const cellSize = boardCellSizeRef.current;
 
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
         const pos = { row, col };
 
-        setGhostPos(pos);
-        setIsGhostValid(canPlace(gameState.grid, piece.shape, pos));
-        setDragPos({
+        const dragPos = {
           x: clientX - grab.col * cellSize - cellSize / 2,
           y: clientY - grab.row * cellSize - cellSize / 2,
-        });
+        };
+        setDragState((prev) => ({
+          ...prev,
+          pos: dragPos,
+          ghost: pos,
+          ghostValid: canPlace(gameState.grid, piece.shape, pos),
+        }));
       });
     },
     [gameState.grid],
@@ -90,10 +120,11 @@ export default function App() {
         rafRef.current = null;
       }
 
-      if (isDraggingRef.current && dragPieceRef.current && boardRef.current) {
+      if (isDraggingRef.current && dragPieceRef.current) {
         const piece = dragPieceRef.current;
         const grab = grabOffsetRef.current;
-        const rect = boardRef.current.getBoundingClientRect();
+        const rect = boardRectRef.current;
+        if (!rect) return;
         const cellSize = boardCellSizeRef.current;
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
@@ -107,10 +138,7 @@ export default function App() {
       isDraggingRef.current = false;
       dragPieceRef.current = null;
       grabOffsetRef.current = { row: 0, col: 0 };
-      setDragPiece(null);
-      setDragPos(null);
-      setGhostPos(null);
-      setIsGhostValid(false);
+      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
     },
     [gameState.grid, actions],
   );
@@ -165,9 +193,9 @@ export default function App() {
 
       <GameBoard
         grid={gameState.grid}
-        ghostPiece={dragPiece}
-        ghostPos={ghostPos}
-        isGhostValid={isGhostValid}
+        ghostPiece={dragState.piece}
+        ghostPos={dragState.ghost}
+        isGhostValid={dragState.ghostValid}
         clearingRows={clearingRows}
         clearingCols={clearingCols}
         boardRef={boardRef}
@@ -175,8 +203,8 @@ export default function App() {
 
       <BlockTray
         pieces={gameState.pieces}
-        draggedPieceId={dragPiece?.id ?? null}
-        dragPos={dragPos}
+        draggedPieceId={dragState.piece?.id ?? null}
+        dragPos={dragState.pos}
         cellSize={boardCellSizeRef.current}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
