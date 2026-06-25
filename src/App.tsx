@@ -56,6 +56,7 @@ export default function App() {
       if (!isDraggingRef.current || !dragPiece || !boardRef.current) return;
       const rect = boardRef.current.getBoundingClientRect();
       const cellSize = rect.width / 8;
+      setBoardCellSize(cellSize);
       const col = Math.floor((clientX - rect.left) / cellSize) - grabOffset.col;
       const row = Math.floor((clientY - rect.top) / cellSize) - grabOffset.row;
       const pos = { row, col };
@@ -102,10 +103,8 @@ export default function App() {
     setPhase("wallet");
   }, [actions]);
 
-  // Compute board cellSize for child components (tray uses this for floating size)
-  const cellSize = boardRef.current
-    ? boardRef.current.getBoundingClientRect().width / 8
-    : 42;
+  // Board cellSize synced from drag callback so tray floating piece matches grid
+  const [boardCellSize, setBoardCellSize] = useState(28);
 
   if (showLeaderboard) {
     return <Leaderboard onClose={() => setShowLeaderboard(false)} />;
@@ -175,7 +174,7 @@ export default function App() {
         pieces={gameState.pieces}
         draggedPieceId={dragPiece?.id ?? null}
         dragPos={dragPos}
-        cellSize={cellSize}
+        cellSize={boardCellSize}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
