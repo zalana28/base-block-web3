@@ -7,7 +7,7 @@ interface Props {
   isDraggable?: boolean;
   isDragging?: boolean;
   dragPos?: { x: number; y: number };
-  onDragStart?: (piece: BlockPiece) => void;
+  onDragStart?: (piece: BlockPiece, anchorRow: number, anchorCol: number) => void;
   onDragMove?: (clientX: number, clientY: number) => void;
   onDragEnd?: (clientX: number, clientY: number) => void;
 }
@@ -70,7 +70,15 @@ export default function BlockShape({
     e.preventDefault();
     isPointerDown.current = true;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    onDragStart?.(piece);
+
+    // Compute which cell within the piece the user grabbed
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const anchorCol = Math.floor((e.clientX - rect.left) / size);
+    const anchorRow = Math.floor((e.clientY - rect.top) / size);
+    const clampedAnchorCol = Math.max(0, Math.min(cols - 1, anchorCol));
+    const clampedAnchorRow = Math.max(0, Math.min(rows - 1, anchorRow));
+
+    onDragStart?.(piece, clampedAnchorRow, clampedAnchorCol);
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {

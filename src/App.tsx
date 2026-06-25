@@ -21,6 +21,7 @@ export default function App() {
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [ghostPos, setGhostPos] = useState<Position | null>(null);
   const [isGhostValid, setIsGhostValid] = useState(false);
+  const [grabOffset, setGrabOffset] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
 
   // Clearing animation state
   const [clearingRows] = useState<number[]>([]);
@@ -35,12 +36,13 @@ export default function App() {
     }
   }, [gameState.phase]);
 
-  const handleDragStart = useCallback((piece: BlockPiece) => {
+  const handleDragStart = useCallback((piece: BlockPiece, anchorRow: number, anchorCol: number) => {
     setDragPiece(piece);
     setIsDragging(true);
     setDragPos(null);
     setGhostPos(null);
     setIsGhostValid(false);
+    setGrabOffset({ row: anchorRow, col: anchorCol });
   }, []);
 
   const handleDragMove = useCallback(
@@ -48,11 +50,9 @@ export default function App() {
       if (!isDragging || !dragPiece || !boardRef.current) return;
       const rect = boardRef.current.getBoundingClientRect();
       const cellSize = rect.width / 8;
-      const col = Math.floor((clientX - rect.left) / cellSize);
-      const row = Math.floor((clientY - rect.top) / cellSize);
-      const clampedRow = Math.max(0, Math.min(7, row));
-      const clampedCol = Math.max(0, Math.min(7, col));
-      const pos = { row: clampedRow, col: clampedCol };
+      const col = Math.floor((clientX - rect.left) / cellSize) - grabOffset.col;
+      const row = Math.floor((clientY - rect.top) / cellSize) - grabOffset.row;
+      const pos = { row, col };
       setGhostPos(pos);
       setIsGhostValid(canPlace(gameState.grid, dragPiece.shape, pos));
       setDragPos({
@@ -60,27 +60,29 @@ export default function App() {
         y: clientY - dragPiece.shape.length * 14,
       });
     },
-    [isDragging, dragPiece, gameState.grid],
+    [isDragging, dragPiece, gameState.grid, grabOffset],
   );
 
   const handleDragEnd = useCallback(
     (_clientX: number, _clientY: number) => {
-      if (!isDragging || !dragPiece) {
-        setIsDragging(false);
-        setDragPiece(null);
-        setGhostPos(null);
-        return;
-      }
-      if (isGhostValid && ghostPos) {
-        actions.placePiece(dragPiece, ghostPos);
+      if (isDragging && dragPiece && boardRef.current) {
+        const rect = boardRef.current.getBoundingClientRect();
+        const cellSize = rect.width / 8;
+        const col = Math.floor((_clientX - rect.left) / cellSize) - grabOffset.col;
+        const row = Math.floor((_clientY - rect.top) / cellSize) - grabOffset.row;
+        const pos = { row, col };
+        if (canPlace(gameState.grid, dragPiece.shape, pos)) {
+          actions.placePiece(dragPiece, pos);
+        }
       }
       setIsDragging(false);
       setDragPiece(null);
       setDragPos(null);
       setGhostPos(null);
       setIsGhostValid(false);
+      setGrabOffset({ row: 0, col: 0 });
     },
-    [isDragging, dragPiece, isGhostValid, ghostPos, actions],
+    [isDragging, dragPiece, gameState.grid, actions, grabOffset],
   );
 
   const handleStartGame = useCallback(() => {
