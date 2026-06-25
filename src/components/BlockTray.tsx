@@ -5,7 +5,7 @@ interface Props {
   pieces: (BlockPiece | null)[];
   draggedPieceId: string | null;
   dragPos: { x: number; y: number } | null;
-  onDragStart: (piece: BlockPiece) => void;
+  onDragStart: (piece: BlockPiece, anchorRow: number, anchorCol: number) => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: (clientX: number, clientY: number) => void;
 }
