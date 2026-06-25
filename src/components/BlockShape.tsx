@@ -4,10 +4,11 @@ import type { BlockPiece } from '../lib/game/types.js';
 interface Props {
   piece: BlockPiece;
   size?: number;
+  boardCellSize?: number;
   isDraggable?: boolean;
   isDragging?: boolean;
   dragPos?: { x: number; y: number } | null;
-  onDragStart?: (piece: BlockPiece, anchorRow: number, anchorCol: number) => void;
+  onDragStart?: (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => void;
   onDragMove?: (clientX: number, clientY: number) => void;
   onDragEnd?: (clientX: number, clientY: number) => void;
 }
@@ -27,32 +28,42 @@ const GLOW_MAP: Record<string, string> = {
 };
 
 export default function BlockShape({
-  piece, size = 28, isDraggable = false, isDragging = false,
+  piece, size = 28, boardCellSize, isDraggable = false, isDragging = false,
   dragPos, onDragStart, onDragMove, onDragEnd,
 }: Props) {
   const isPointerDown = useRef(false);
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
-  const gridStyle: React.CSSProperties = {
+  const getGridStyle = (sz: number): React.CSSProperties => ({
     display: 'grid',
-    gridTemplateColumns: `repeat(${cols}, ${size}px)`,
-    gridTemplateRows: `repeat(${rows}, ${size}px)`,
+    gridTemplateColumns: `repeat(${cols}, ${sz}px)`,
+    gridTemplateRows: `repeat(${rows}, ${sz}px)`,
     gap: '1px',
     touchAction: 'none',
+  });
+
+  const trayStyle = getGridStyle(size);
+
+  // Captured element: stays in tray, keeps pointer capture, never switches layout mode
+  const captureStyle: React.CSSProperties = {
+    ...trayStyle,
+    visibility: isDragging && dragPos ? 'hidden' : undefined,
   };
 
-  const containerStyle: React.CSSProperties =
+  // Floating clone: follows cursor, no pointer events (visual only)
+  const floatStyle: React.CSSProperties | undefined =
     isDragging && dragPos
       ? {
-          ...gridStyle, // ← penting: pertahankan grid layout saat dragging!
+          ...getGridStyle(boardCellSize ?? size),
           position: 'fixed',
           left: dragPos.x,
           top: dragPos.y,
           pointerEvents: 'none',
           zIndex: 100,
+          willChange: 'transform',
         }
-      : gridStyle;
+      : undefined;
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable) return;
@@ -67,7 +78,7 @@ export default function BlockShape({
     const anchorRow = Math.floor((e.clientY - rect.top) / cellH);
     const ar = Math.max(0, Math.min(rows - 1, anchorRow));
     const ac = Math.max(0, Math.min(cols - 1, anchorCol));
-    onDragStart?.(piece, ar, ac);
+    onDragStart?.(piece, ar, ac, e.clientX, e.clientY);
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -85,29 +96,45 @@ export default function BlockShape({
   const glow = GLOW_MAP[piece.color] ?? 'rgba(255,255,255,0.2)';
   const bg = COLOR_MAP[piece.color] ?? 'transparent';
 
+  const cells = piece.shape.map((row, r) =>
+    row.map((filled, c) => {
+      const sz = boardCellSize ?? size;
+      return (
+        <div
+          key={`${r}-${c}`}
+          className={`block-shape-cell${filled ? ' filled' : ''}`}
+          style={{
+            width: sz, height: sz,
+            background: filled ? bg : 'transparent',
+            borderRadius: 4,
+            boxShadow: filled ? `0 0 8px ${glow}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
+          }}
+        />
+      );
+    }),
+  );
+
+  // Render captured element + floating clone separately
+  // Captured element stays in tray DOM tree (preserves pointer capture)
+  // Clone is a new element that follows cursor (no pointer events)
   return (
-    <div
-      className="block-shape"
-      style={containerStyle}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-    >
-      {piece.shape.map((row, r) =>
-        row.map((filled, c) => (
-          <div
-            key={`${r}-${c}`}
-            className={`block-shape-cell${filled ? ' filled' : ''}`}
-            style={{
-              width: size, height: size,
-              background: filled ? bg : 'transparent',
-              borderRadius: 4,
-              boxShadow: filled ? `0 0 8px ${glow}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
-            }}
-          />
-        )),
+    <>
+      <div
+        className="block-shape"
+        style={captureStyle}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        {cells}
+      </div>
+
+      {floatStyle && (
+        <div className="block-shape" style={floatStyle}>
+          {cells}
+        </div>
       )}
-    </div>
+    </>
   );
 }

@@ -6,7 +6,7 @@ interface Props {
   draggedPieceId: string | null;
   dragPos: { x: number; y: number } | null;
   cellSize?: number;
-  onDragStart: (piece: BlockPiece, anchorRow: number, anchorCol: number) => void;
+  onDragStart: (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => void;
   onDragMove: (clientX: number, clientY: number) => void;
   onDragEnd: (clientX: number, clientY: number) => void;
 }
@@ -28,7 +28,8 @@ export default function BlockTray({
             {piece ? (
               <BlockShape
                 piece={piece}
-                size={isDragged ? cellSize : 28}
+                size={28}
+                boardCellSize={isDragged ? cellSize : undefined}
                 isDraggable
                 isDragging={isDragged}
                 dragPos={isDragged ? dragPos : null}
