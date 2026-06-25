@@ -1,0 +1,21 @@
+{
+  "abi": [
+    {
+      "type": "function",
+      "name": "getTopScores",
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "tuple[]",
+          "components": [
+            { "type": "address", "name": "player" },
+            { "type": "uint256", "name": "score" },
+            { "type": "uint256", "name": "level" }
+          ],
+          "internalType": "struct LeaderboardEntry[]"
+        }
+      ],
+      "stateMutability": "view"
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+/* ============================================
+   Base Block — Arcade UI Stylesheet
+   Palette: Base Blue + Neon Blocks
+   ============================================ */
+
+:root {
+  --bg: #0a0f1a;
+  --bg2: #0f1729;
+  --base-blue: #0052FF;
+  --base-blue-dark: #003ecc;
+  --base-bright: #4d8aff;
+  --frog: #00e676;
+  --frog-dark: #00c853;
+  --frog-glow: rgba(0, 230, 118, 0.55);
+  --yellow: #ffea00;
+  --danger: #ef4444;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+
+  --block-red: #ff3860;
+  --block-orange: #ff8c00;
+  --block-yellow: #ffd400;
+  --block-green: #00e676;
+  --block-cyan: #00e0ff;
+  --block-blue: #0052ff;
+  --block-purple: #a855f7;
+  --block-pink: #ff4fd8;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  overflow: hidden;
+  height: 100%; height: 100dvh;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+}
+
+#root {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #10214a 0%, #030712 80%);
+  overflow: hidden;
+}
+
+/* CRT */
+.crt-overlay {
+  position: fixed; inset: 0; z-index: 100; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,255,100,0.03) 2px, rgba(0,255,100,0.03) 4px);
+  box-shadow: inset 0 0 120px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.4);
+}
+
+/* Overlays & Panels */
+.overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 16px;
+  background: rgba(10,15,26,0.92);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+}
+.panel {
+  background: rgba(12,18,35,0.96); border: 2px solid var(--base-blue); border-radius: 12px;
+  box-shadow: 0 0 24px rgba(0,82,255,0.25), inset 0 0 24px rgba(0,82,255,0.08);
+  padding: 26px 24px; width: min(92vw, 420px); max-height: 84dvh;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
+
+/* Hero */
+.hero-mascot { font-size: 48px; line-height: 1; margin: 0 0 12px;
+  text-shadow: 0 0 16px var(--frog-glow), 0 0 32px var(--frog-glow);
+  animation: floaty 2.5s ease-in-out infinite;
+}
+.hero-title { font-size: 22px; line-height: 1.3; margin: 0 0 8px; color: var(--frog);
+  letter-spacing: 2px; text-transform: uppercase;
+  text-shadow: 0 0 8px var(--frog-glow), 1px 1px 0 var(--frog-dark), 2px 2px 0 var(--frog-dark), 3px 3px 0 #007a3d;
+}
+.hero-subtitle { font-size: 10px; line-height: 1.4; margin: 0 0 18px; color: var(--base-bright);
+  letter-spacing: 3px; text-transform: uppercase;
+}
+
+h1 { font-size: 18px; margin: 0 0 6px; color: var(--frog);
+  text-shadow: 0 0 8px var(--frog-glow), 1px 1px 0 var(--frog-dark), 2px 2px 0 #007a3d; letter-spacing: 1px; }
+h2 { font-size: 11px; margin: 0 0 16px; color: var(--base-bright); letter-spacing: 2px; }
+p { font-size: 10px; line-height: 1.7; margin: 10px 0; color: var(--text-dim); }
+
+/* Buttons */
+button {
+  font-family: 'Press Start 2P', 'Courier New', monospace; font-weight: bold;
+  background: transparent; color: var(--base-bright); border: 2px solid var(--base-bright);
+  border-radius: 6px; padding: 14px 18px; margin: 8px 0; cursor: pointer;
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  transition: transform 0.08s ease, box-shadow 0.15s ease, background 0.15s ease;
+  min-width: 140px; width: 100%; max-width: 280px; position: relative; top: 0;
+}
+button.primary { background: var(--base-blue); color: #fff; border-color: var(--base-blue-dark); box-shadow: 0 4px 0 var(--base-blue-dark); }
+button.primary:hover { background: var(--base-bright); border-color: var(--base-bright); box-shadow: 0 4px 0 var(--base-blue); }
+button.primary:active { transform: translateY(4px); box-shadow: 0 0 0 var(--base-blue-dark); }
+button.secondary { background: transparent; color: var(--base-bright); border-color: var(--base-bright); box-shadow: 0 3px 0 rgba(77,138,255,0.25); }
+button.secondary:hover { background: rgba(77,138,255,0.12); box-shadow: 0 3px 0 rgba(77,138,255,0.4); }
+button.secondary:active { transform: translateY(3px); box-shadow: 0 0 0 transparent; }
+button.warn { background: var(--frog-dark); color: #021408; border-color: var(--frog-dark); box-shadow: 0 4px 0 #007a3d; }
+button.warn:hover { background: var(--frog); border-color: var(--frog); box-shadow: 0 4px 0 var(--frog-dark); }
+button.warn:active { transform: translateY(4px); box-shadow: 0 0 0 #007a3d; }
+button.alt { background: transparent; color: var(--base-bright); border-color: var(--base-bright); box-shadow: 0 3px 0 rgba(77,138,255,0.25); }
+button.alt:hover { background: rgba(77,138,255,0.12); box-shadow: 0 3px 0 rgba(77,138,255,0.4); }
+button.alt:active { transform: translateY(3px); box-shadow: 0 0 0 transparent; }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+.blink { animation: blink 1.2s step-start infinite; color: var(--yellow);
+  text-shadow: 0 0 8px rgba(255,234,0,0.5); font-size: 11px; letter-spacing: 2px; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+/* Wallet Modal */
+.wallet-modal-overlay { position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.wallet-modal { background: rgba(12,18,35,0.98); border: 2px solid var(--base-blue); border-radius: 12px;
+  box-shadow: 0 0 30px rgba(0,82,255,0.3); padding: 22px 20px; width: min(92vw, 380px); max-height: 80dvh;
+  overflow-y: auto; overscroll-behavior: contain; }
+.wallet-modal h3 { font-size: 12px; margin: 0 0 14px; color: var(--frog);
+  text-shadow: 0 0 8px var(--frog-glow); text-align: center; letter-spacing: 1px; }
+.connector-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin: 6px 0;
+  font-size: 10px; background: rgba(0,82,255,0.08); border: 1.5px solid rgba(0,82,255,0.35); border-radius: 8px;
+  color: var(--text); cursor: pointer; transition: all 0.15s ease; text-transform: none; letter-spacing: 0.5px; box-shadow: none; }
+.connector-btn:hover { background: rgba(0,82,255,0.2); border-color: var(--base-bright); box-shadow: 0 0 12px rgba(0,82,255,0.15); }
+.connector-btn:active { transform: scale(0.98); }
+.connector-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.connector-icon { font-size: 18px; line-height: 1; flex-shrink: 0; width: 28px; text-align: center; }
+.close-btn { display: block; margin: 14px auto 0; width: auto; min-width: 100px; padding: 10px 18px;
+  font-size: 9px; background: transparent; border: 1.5px solid var(--text-dim); color: var(--text-dim); border-radius: 6px;
+  cursor: pointer; transition: all 0.15s ease; box-shadow: none; }
+.close-btn:hover { border-color: var(--text); color: var(--text); }
+
+/* Wallet Status */
+.wallet-status { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 10px 0; font-size: 10px; }
+.wallet-status .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.wallet-status .dot.connected { background: var(--frog); box-shadow: 0 0 6px var(--frog); }
+.wallet-status .dot.disconnected { background: var(--danger); }
+.wallet-status .dot.pending { background: var(--yellow); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.address { font-size: 9px; color: var(--base-bright); word-break: break-all; margin: 4px 0; }
+.tx-status { font-size: 9px; margin: 10px 0; padding: 8px 12px; background: rgba(0,0,0,0.35);
+  border: 1px dashed rgba(0,82,255,0.3); border-radius: 6px; line-height: 1.5; }
+
+/* Animations */
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .blink, .hero-mascot, .wallet-status .dot.pending { animation: none; }
+}
+
+/* ============================================
+   Base Block — Game Component Styles
+   ============================================ */
+
+/* Game Board */
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  width: min(90vw, 360px);
+  aspect-ratio: 1;
+  background: rgba(0,0,0,0.3);
+  border: 2px solid var(--base-blue);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 0 20px rgba(0,82,255,0.15), inset 0 0 20px rgba(0,82,255,0.05);
+  position: relative;
+  touch-action: none;
+}
+.cell {
+  border-radius: 3px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: background 0.1s, transform 0.1s;
+}
+.cell.filled { border-color: rgba(255,255,255,0.15); }
+.cell.ghost-valid { background: rgba(0,230,118,0.25); border-color: var(--frog); }
+.cell.ghost-invalid { background: rgba(239,68,68,0.25); border-color: var(--danger); }
+.cell.clearing { animation: flashClear 0.4s ease; }
+@keyframes flashClear {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; background: #fff; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Block Tray */
+.block-tray {
+  display: flex; gap: 12px; justify-content: center; align-items: center;
+  margin-top: 12px; padding: 8px;
+}
+.tray-slot {
+  width: 96px; height: 96px; border-radius: 8px;
+  border: 2px dashed rgba(0,82,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,82,255,0.03);
+}
+.tray-slot.filled { border-style: solid; background: rgba(0,82,255,0.06); }
+
+/* Block Shape */
+.block-shape {
+  display: grid; gap: 1px;
+  cursor: grab;
+}
+.block-shape:active { cursor: grabbing; }
+.block-shape-cell {
+  width: 24px; height: 24px; border-radius: 2px;
+}
+.block-shape-cell.filled { border: 1px solid rgba(255,255,255,0.2); }
+
+/* Score Board */
+.score-board {
+  position: absolute; top: 8px; left: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none; z-index: 10;
+}
+.score-block { background: rgba(0,0,0,0.4); padding: 6px 10px; border: 1px solid rgba(0,82,255,0.3); border-radius: 4px; }
+.score-label { font-size: 7px; color: var(--base-bright); display: block; margin-bottom: 2px; }
+.score-value { font-size: 11px; color: var(--frog); }
