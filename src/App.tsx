@@ -49,14 +49,17 @@ export default function App() {
     setGhostPos(null);
     setIsGhostValid(false);
     setGrabOffset({ row: anchorRow, col: anchorCol });
+    if (boardRef.current) {
+      const rect = boardRef.current.getBoundingClientRect();
+      boardCellSizeRef.current = rect.width / 8;
+    }
   }, []);
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !dragPiece || !boardRef.current) return;
       const rect = boardRef.current.getBoundingClientRect();
-      const cellSize = rect.width / 8;
-      setBoardCellSize(cellSize);
+      const cellSize = boardCellSizeRef.current;
       const col = Math.floor((clientX - rect.left) / cellSize) - grabOffset.col;
       const row = Math.floor((clientY - rect.top) / cellSize) - grabOffset.row;
       const pos = { row, col };
@@ -75,7 +78,7 @@ export default function App() {
     (_clientX: number, _clientY: number) => {
       if (isDraggingRef.current && dragPiece && boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
-        const cellSize = rect.width / 8;
+        const cellSize = boardCellSizeRef.current;
         const col = Math.floor((_clientX - rect.left) / cellSize) - grabOffset.col;
         const row = Math.floor((_clientY - rect.top) / cellSize) - grabOffset.row;
         const pos = { row, col };
@@ -103,8 +106,8 @@ export default function App() {
     setPhase("wallet");
   }, [actions]);
 
-  // Board cellSize synced from drag callback so tray floating piece matches grid
-  const [boardCellSize, setBoardCellSize] = useState(28);
+  // Board cellSize captured at drag start so tray floating piece matches grid without re-renders
+  const boardCellSizeRef = useRef(28);
 
   if (showLeaderboard) {
     return <Leaderboard onClose={() => setShowLeaderboard(false)} />;
@@ -174,7 +177,7 @@ export default function App() {
         pieces={gameState.pieces}
         draggedPieceId={dragPiece?.id ?? null}
         dragPos={dragPos}
-        cellSize={boardCellSize}
+        cellSize={boardCellSizeRef.current}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}

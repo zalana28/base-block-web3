@@ -57,6 +57,7 @@ export default function BlockShape({
 
   const draggingStyle: React.CSSProperties | undefined = isDragging && dragPos
     ? {
+        ...gridStyle,
         position: 'fixed' as const,
         left: dragPos.x,
         top: dragPos.y,
