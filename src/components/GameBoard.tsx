@@ -8,7 +8,7 @@ interface Props {
   isGhostValid?: boolean;
   clearingRows?: number[];
   clearingCols?: number[];
-  boardRef?: RefObject<HTMLDivElement>;
+  boardRef?: RefObject<HTMLDivElement | null>;
 }
 
 const COLOR_MAP: Record<string, string> = {

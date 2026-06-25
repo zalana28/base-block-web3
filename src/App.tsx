@@ -1,23 +1,24 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import type { BlockPiece, Position } from './lib/game/types.js';
-import { canPlace } from './lib/game/grid.js';
-import { useGameState } from './hooks/useGameState.js';
-import GameBoard from './components/GameBoard.js';
-import BlockTray from './components/BlockTray.js';
-import ScoreBoard from './components/ScoreBoard.js';
-import GameOverModal from './components/GameOverModal.js';
-import WalletGate from './components/WalletGate.js';
-import Leaderboard from './components/Leaderboard.js';
+import { useState, useRef, useCallback, useEffect } from "react";
+import type { BlockPiece, Position } from "./lib/game/types.js";
+import { canPlace } from "./lib/game/grid.js";
+import { useGameState } from "./hooks/useGameState.js";
+import GameBoard from "./components/GameBoard.js";
+import BlockTray from "./components/BlockTray.js";
+import ScoreBoard from "./components/ScoreBoard.js";
+import GameOverModal from "./components/GameOverModal.js";
+import WalletGate from "./components/WalletGate.js";
+import Leaderboard from "./components/Leaderboard.js";
 
-type AppPhase = 'wallet' | 'playing' | 'over';
+type AppPhase = "wallet" | "playing" | "over";
 
 export default function App() {
-  const [phase, setPhase] = useState<AppPhase>('wallet');
+  const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Drag state
   const [dragPiece, setDragPiece] = useState<BlockPiece | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [ghostPos, setGhostPos] = useState<Position | null>(null);
   const [isGhostValid, setIsGhostValid] = useState(false);
@@ -30,9 +31,14 @@ export default function App() {
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
 
+  // Sync isDragging state -> ref so callbacks always see the latest value
   useEffect(() => {
-    if (gameState.phase === 'over') {
-      setPhase('over');
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (gameState.phase === "over") {
+      setPhase("over");
     }
   }, [gameState.phase]);
 
@@ -47,7 +53,7 @@ export default function App() {
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
-      if (!isDragging || !dragPiece || !boardRef.current) return;
+      if (!isDraggingRef.current || !dragPiece || !boardRef.current) return;
       const rect = boardRef.current.getBoundingClientRect();
       const cellSize = rect.width / 8;
       const col = Math.floor((clientX - rect.left) / cellSize) - grabOffset.col;
@@ -55,17 +61,18 @@ export default function App() {
       const pos = { row, col };
       setGhostPos(pos);
       setIsGhostValid(canPlace(gameState.grid, dragPiece.shape, pos));
+      // Floating piece follows pointer with grab-cell-centered offset
       setDragPos({
-        x: clientX - (dragPiece.shape[0]?.length ?? 0) * 14,
-        y: clientY - dragPiece.shape.length * 14,
+        x: clientX - grabOffset.col * cellSize - cellSize / 2,
+        y: clientY - grabOffset.row * cellSize - cellSize / 2,
       });
     },
-    [isDragging, dragPiece, gameState.grid, grabOffset],
+    [dragPiece, gameState.grid, grabOffset],
   );
 
   const handleDragEnd = useCallback(
     (_clientX: number, _clientY: number) => {
-      if (isDragging && dragPiece && boardRef.current) {
+      if (isDraggingRef.current && dragPiece && boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
         const cellSize = rect.width / 8;
         const col = Math.floor((_clientX - rect.left) / cellSize) - grabOffset.col;
@@ -82,24 +89,29 @@ export default function App() {
       setIsGhostValid(false);
       setGrabOffset({ row: 0, col: 0 });
     },
-    [isDragging, dragPiece, gameState.grid, actions, grabOffset],
+    [dragPiece, gameState.grid, actions, grabOffset],
   );
 
   const handleStartGame = useCallback(() => {
     actions.startGame();
-    setPhase('playing');
+    setPhase("playing");
   }, [actions]);
 
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
-    setPhase('wallet');
+    setPhase("wallet");
   }, [actions]);
+
+  // Compute board cellSize for child components (tray uses this for floating size)
+  const cellSize = boardRef.current
+    ? boardRef.current.getBoundingClientRect().width / 8
+    : 42;
 
   if (showLeaderboard) {
     return <Leaderboard onClose={() => setShowLeaderboard(false)} />;
   }
 
-  if (phase === 'wallet') {
+  if (phase === "wallet") {
     return (
       <WalletGate
         onReady={handleStartGame}
@@ -108,7 +120,7 @@ export default function App() {
     );
   }
 
-  if (phase === 'over') {
+  if (phase === "over") {
     return (
       <GameOverModal
         score={gameState.score}
@@ -123,14 +135,14 @@ export default function App() {
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0px',
-        padding: '8px',
-        width: '100%',
-        position: 'relative',
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "0px",
+        padding: "8px",
+        width: "100%",
+        position: "relative",
       }}
     >
       {/* Header */}
@@ -147,23 +159,23 @@ export default function App() {
         streak={gameState.streak}
       />
 
-      {/* Game board */}
-      <div ref={boardRef}>
-        <GameBoard
-          grid={gameState.grid}
-          ghostPiece={isDragging ? dragPiece : null}
-          ghostPos={ghostPos}
-          isGhostValid={isGhostValid}
-          clearingRows={clearingRows}
-          clearingCols={clearingCols}
-        />
-      </div>
+      {/* Game board — boardRef passed directly to GameBoard */}
+      <GameBoard
+        grid={gameState.grid}
+        ghostPiece={isDragging ? dragPiece : null}
+        ghostPos={ghostPos}
+        isGhostValid={isGhostValid}
+        clearingRows={clearingRows}
+        clearingCols={clearingCols}
+        boardRef={boardRef}
+      />
 
       {/* Block tray */}
       <BlockTray
         pieces={gameState.pieces}
         draggedPieceId={dragPiece?.id ?? null}
         dragPos={dragPos}
+        cellSize={cellSize}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
