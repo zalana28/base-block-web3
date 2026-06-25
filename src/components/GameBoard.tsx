@@ -29,6 +29,7 @@ export default function GameBoard({
   isGhostValid,
   clearingRows = [],
   clearingCols = [],
+  boardRef,
 }: Props) {
   const isClearingCell = (row: number, col: number) =>
     clearingRows.includes(row) || clearingCols.includes(col);
@@ -64,7 +65,7 @@ export default function GameBoard({
   }
 
   return (
-    <div className="game-board" aria-label="Game board">
+    <div ref={boardRef} className="game-board" aria-label="Game board">
       {cells.map(({ row, col, color }) => {
         const isClearing = isClearingCell(row, col);
         const isGhost = isGhostCell(row, col);
