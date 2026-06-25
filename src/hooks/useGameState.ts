@@ -14,8 +14,8 @@ interface Actions {
 }
 
 export function useGameState(): [GameState, Actions] {
-  const scoreHooks = useScore();
-  const generator = useBlockGenerator();
+  const { score, bestScore, addScore, reset: resetScore } = useScore();
+  const { pieces, regenerate, markUsed } = useBlockGenerator();
 
   const [grid, setGrid] = useState<Grid>(createGrid());
   const [combo, setCombo] = useState(0);
@@ -27,28 +27,28 @@ export function useGameState(): [GameState, Actions] {
   const justRegeneratedRef = useRef(false);
 
   const visiblePieces = useMemo(
-    () => generator.pieces.filter((p): p is BlockPiece => p !== null),
-    [generator.pieces],
+    () => pieces.filter((p): p is BlockPiece => p !== null),
+    [pieces],
   );
 
   const gameState: GameState = useMemo(
     () => ({
       grid,
-      pieces: generator.pieces, // length 3, null = sudah dipakai
-      score: scoreHooks.score,
-      bestScore: scoreHooks.bestScore,
+      pieces, // length 3, null = sudah dipakai
+      score,
+      bestScore,
       combo, maxCombo, streak, totalCleared, phase,
     }),
-    [grid, generator.pieces, scoreHooks.score, scoreHooks.bestScore, combo, maxCombo, streak, totalCleared, phase],
+    [grid, pieces, score, bestScore, combo, maxCombo, streak, totalCleared, phase],
   );
 
   const startGame = useCallback(() => {
     setGrid(createGrid());
-    scoreHooks.reset();
-    generator.regenerate();
+    resetScore();
+    regenerate();
     setCombo(0); setMaxCombo(0); setStreak(0); setTotalCleared(0);
     setPhase('playing');
-  }, [scoreHooks, generator]);
+  }, [resetScore, regenerate]);
 
   const placePiece = useCallback(
     (piece: BlockPiece, pos: { row: number; col: number }): boolean => {
@@ -64,32 +64,30 @@ export function useGameState(): [GameState, Actions] {
       const points = calculateScore(
         placedCells, result.cellsCleared, result.isCombo, linesCleared, streak,
       );
-      scoreHooks.addScore(points);
+      addScore(points);
 
       if (linesCleared > 0) {
         setStreak((s) => s + 1);
-        setCombo((c) => {
-          const next = c + 1;
-          setMaxCombo((m) => Math.max(m, next));
-          return next;
-        });
+        const nextCombo = combo + 1;
+        setCombo(nextCombo);
+        setMaxCombo((m) => Math.max(m, nextCombo));
         setTotalCleared((tc) => tc + result.cellsCleared);
       } else {
         setStreak(0);
         setCombo(0);
       }
 
-      generator.markUsed(piece.id);
+      markUsed(piece.id);
 
       // Cek apakah ini blok terakhir di batch
-      const remainingAfter = generator.pieces.filter(
+      const remainingAfter = pieces.filter(
         (p): p is BlockPiece => p !== null && p.id !== piece.id,
       );
 
       if (remainingAfter.length === 0) {
         // Batch habis → regenerate, cek game over di useEffect setelah pieces baru muncul
         justRegeneratedRef.current = true;
-        generator.regenerate();
+        regenerate();
       } else {
         // Masih ada blok tersisa → cek apakah masih bisa ditempatkan
         if (!canPlaceAnyOfPieces(afterClear, remainingAfter)) {
@@ -99,7 +97,7 @@ export function useGameState(): [GameState, Actions] {
 
       return true;
     },
-    [phase, grid, streak, scoreHooks, generator],
+    [phase, grid, streak, combo, addScore, markUsed, regenerate, pieces],
   );
 
   // Setelah regenerasi batch, cek apakah ada yang bisa ditempatkan
@@ -121,5 +119,10 @@ export function useGameState(): [GameState, Actions] {
 
   const resetGame = useCallback(() => { setPhase('menu'); }, []);
 
-  return [gameState, { startGame, placePiece, isGameOver, resetGame }];
+  const actions = useMemo(
+    () => ({ startGame, placePiece, isGameOver, resetGame }),
+    [startGame, placePiece, isGameOver, resetGame],
+  );
+
+  return [gameState, actions];
 }

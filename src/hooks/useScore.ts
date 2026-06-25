@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 const STORAGE_KEY = 'base-block-best';
 
@@ -31,5 +31,8 @@ export function useScore(): {
 
   const reset = useCallback(() => { setScore(0); }, []);
 
-  return { score, bestScore, addScore, reset };
+  return useMemo(
+    () => ({ score, bestScore, addScore, reset }),
+    [score, bestScore, addScore, reset],
+  );
 }

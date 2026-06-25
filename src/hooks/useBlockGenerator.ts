@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { generateTrayBatch } from '../lib/game/generator.js';
 import type { BlockPiece } from '../lib/game/types.js';
 
@@ -22,5 +22,8 @@ export function useBlockGenerator(): {
     setPieces([null, null, null]);
   }, []);
 
-  return { pieces, regenerate, markUsed, clearAll };
+  return useMemo(
+    () => ({ pieces, regenerate, markUsed, clearAll }),
+    [pieces, regenerate, markUsed, clearAll],
+  );
 }
