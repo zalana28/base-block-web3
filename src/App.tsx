@@ -22,7 +22,8 @@ export default function App() {
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [ghostPos, setGhostPos] = useState<Position | null>(null);
   const [isGhostValid, setIsGhostValid] = useState(false);
-  const [grabOffset, setGrabOffset] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
+  const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
+  const rafRef = useRef<number | null>(null);
 
   // Clearing animation state
   const [clearingRows] = useState<number[]>([]);
@@ -48,7 +49,7 @@ export default function App() {
     setDragPos(null);
     setGhostPos(null);
     setIsGhostValid(false);
-    setGrabOffset({ row: anchorRow, col: anchorCol });
+    grabOffsetRef.current = { row: anchorRow, col: anchorCol };
     if (boardRef.current) {
       const rect = boardRef.current.getBoundingClientRect();
       boardCellSizeRef.current = rect.width / 8;
@@ -58,29 +59,37 @@ export default function App() {
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !dragPiece || !boardRef.current) return;
-      const rect = boardRef.current.getBoundingClientRect();
-      const cellSize = boardCellSizeRef.current;
-      const col = Math.floor((clientX - rect.left) / cellSize) - grabOffset.col;
-      const row = Math.floor((clientY - rect.top) / cellSize) - grabOffset.row;
-      const pos = { row, col };
-      setGhostPos(pos);
-      setIsGhostValid(canPlace(gameState.grid, dragPiece.shape, pos));
-      // Floating piece follows pointer with grab-cell-centered offset
-      setDragPos({
-        x: clientX - grabOffset.col * cellSize - cellSize / 2,
-        y: clientY - grabOffset.row * cellSize - cellSize / 2,
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        if (!boardRef.current) return;
+        const rect = boardRef.current.getBoundingClientRect();
+        const cellSize = boardCellSizeRef.current;
+        const col = Math.floor((clientX - rect.left) / cellSize) - grabOffsetRef.current.col;
+        const row = Math.floor((clientY - rect.top) / cellSize) - grabOffsetRef.current.row;
+        const pos = { row, col };
+        setGhostPos(pos);
+        setIsGhostValid(canPlace(gameState.grid, dragPiece.shape, pos));
+        // Floating piece follows pointer with grab-cell-centered offset
+        setDragPos({
+          x: clientX - grabOffsetRef.current.col * cellSize - cellSize / 2,
+          y: clientY - grabOffsetRef.current.row * cellSize - cellSize / 2,
+        });
       });
     },
-    [dragPiece, gameState.grid, grabOffset],
+    [dragPiece, gameState.grid],
   );
 
   const handleDragEnd = useCallback(
     (_clientX: number, _clientY: number) => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       if (isDraggingRef.current && dragPiece && boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
         const cellSize = boardCellSizeRef.current;
-        const col = Math.floor((_clientX - rect.left) / cellSize) - grabOffset.col;
-        const row = Math.floor((_clientY - rect.top) / cellSize) - grabOffset.row;
+        const col = Math.floor((_clientX - rect.left) / cellSize) - grabOffsetRef.current.col;
+        const row = Math.floor((_clientY - rect.top) / cellSize) - grabOffsetRef.current.row;
         const pos = { row, col };
         if (canPlace(gameState.grid, dragPiece.shape, pos)) {
           actions.placePiece(dragPiece, pos);
@@ -91,9 +100,9 @@ export default function App() {
       setDragPos(null);
       setGhostPos(null);
       setIsGhostValid(false);
-      setGrabOffset({ row: 0, col: 0 });
+      grabOffsetRef.current = { row: 0, col: 0 };
     },
-    [dragPiece, gameState.grid, actions, grabOffset],
+    [dragPiece, gameState.grid, actions],
   );
 
   const handleStartGame = useCallback(() => {
