@@ -3,7 +3,9 @@ import { Attribution } from "ox/erc8021";
 import { base } from "./chain.js";
 import { baseAccount, injected } from "wagmi/connectors";
 
-export const LEADERBOARD_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+import { GAME_CONTRACT_ADDRESS } from "./contract.js";
+
+export const LEADERBOARD_ADDRESS = GAME_CONTRACT_ADDRESS;
 
 export const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_rhgm3bxx"] });
 
