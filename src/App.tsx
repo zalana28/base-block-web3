@@ -5,7 +5,6 @@ import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
-import NextTray from "./components/NextTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
@@ -21,7 +20,8 @@ export default function App() {
   const [gameMode, setGameMode] = useState<0 | 1>(0);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
 
-  const { submitScore } = useGameContract();
+  const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
+  const [manualSubmitted, setManualSubmitted] = useState(false);
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -209,12 +209,20 @@ export default function App() {
     setPhase("playing");
   }, [actions]);
 
+  const handleManualSubmit = useCallback(() => {
+    txReset();
+    submitScore(gameState.mode, gameState.score, gameState.level);
+    setManualSubmitted(true);
+  }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level]);
+
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
     setScoreSubmitted(false);
+    setManualSubmitted(false);
+    txReset();
     setGameOverReason('no-moves');
     setPhase("wallet");
-  }, [actions]);
+  }, [actions, txReset]);
 
   if (showLeaderboard) {
     return <Leaderboard onClose={() => setShowLeaderboard(false)} />;
@@ -271,6 +279,28 @@ export default function App() {
         boardRef={boardRef}
       />
 
+      {gameState.mode === 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+          <button
+            className="primary"
+            onClick={handleManualSubmit}
+            disabled={txStatus === 'pending' || txStatus === 'confirming'}
+            style={{ fontSize: 12, padding: '8px 20px' }}
+          >
+            {txStatus === 'pending' || txStatus === 'confirming'
+              ? '⏳ SUBMITTING...'
+              : txStatus === 'success' || manualSubmitted
+                ? '✅ SCORE SUBMITTED'
+                : '📤 SUBMIT SCORE'}
+          </button>
+          {txStatus === 'error' && txError && (
+            <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+              {txError.message}
+            </span>
+          )}
+        </div>
+      )}
+
       <BlockTray
         pieces={gameState.pieces}
         draggedPieceId={dragState.piece?.id ?? null}
@@ -280,8 +310,6 @@ export default function App() {
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
       />
-
-      <NextTray pieces={gameState.nextPieces} />
 
     </div>
   );

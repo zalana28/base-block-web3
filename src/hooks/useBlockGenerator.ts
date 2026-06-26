@@ -4,21 +4,17 @@ import type { BlockPiece } from '../lib/game/types.js';
 
 export function useBlockGenerator(): {
   pieces: (BlockPiece | null)[];
-  nextPieces: (BlockPiece | null)[];
   regenerate: (level?: number) => void;
   markUsed: (id: string, level?: number) => void;
   clearAll: () => void;
 } {
   const [pieces, setPieces] = useState<(BlockPiece | null)[]>(() => generateTrayBatch());
-  const [nextPieces, setNextPieces] = useState<(BlockPiece | null)[]>(() => generateTrayBatch());
   const levelRef = useRef(1);
 
   const regenerate = useCallback((level?: number) => {
     const lv = level ?? levelRef.current;
     if (level !== undefined) levelRef.current = level;
-    const next = generateTrayBatch(lv);
-    setPieces(next);
-    setNextPieces(generateTrayBatch(lv));
+    setPieces(generateTrayBatch(lv));
   }, []);
 
   const markUsed = useCallback((id: string, level?: number) => {
@@ -35,11 +31,10 @@ export function useBlockGenerator(): {
 
   const clearAll = useCallback(() => {
     setPieces([null, null, null]);
-    setNextPieces([null, null, null]);
   }, []);
 
   return useMemo(
-    () => ({ pieces, nextPieces, regenerate, markUsed, clearAll }),
-    [pieces, nextPieces, regenerate, markUsed, clearAll],
+    () => ({ pieces, regenerate, markUsed, clearAll }),
+    [pieces, regenerate, markUsed, clearAll],
   );
 }
