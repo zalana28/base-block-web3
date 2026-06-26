@@ -9,6 +9,7 @@ interface Props {
   clearingRows?: number[];
   clearingCols?: number[];
   boardRef?: RefObject<HTMLDivElement | null>;
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
 
 const COLOR_MAP: Record<string, string> = {
@@ -20,7 +21,7 @@ const COLOR_MAP: Record<string, string> = {
 
 export default function GameBoard({
   grid, ghostPiece, ghostPos, isGhostValid,
-  clearingRows = [], clearingCols = [], boardRef,
+  clearingRows = [], clearingCols = [], boardRef, onPointerDown,
 }: Props) {
   const isClearingCell = (row: number, col: number) =>
     clearingRows.includes(row) || clearingCols.includes(col);
@@ -37,7 +38,12 @@ export default function GameBoard({
   };
 
   return (
-    <div ref={boardRef} className="game-board" aria-label="Game board">
+    <div
+      ref={boardRef}
+      className="game-board"
+      aria-label="Game board"
+      onPointerDown={onPointerDown}
+    >
       {Array.from({ length: 8 }, (_, row) =>
         Array.from({ length: 8 }, (_, col) => {
           const color = grid[row][col];

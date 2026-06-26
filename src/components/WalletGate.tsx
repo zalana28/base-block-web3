@@ -47,55 +47,82 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
   }, [status, isConnected, selectedMode, onReady]);
 
   return (
-    <div className="overlay">
-      <div className="panel">
-        <div className="hero-mascot">🧱</div>
-        <h1 className="hero-title">BASE BLOCK</h1>
-        <p className="hero-subtitle">ON BASE NETWORK</p>
-        <p className="blink">— TAP TO START —</p>
+    <div className="landing-shell">
+      <div className="landing-content">
+        <div className="landing-badge">
+          <span className="dot" />
+          ON BASE NETWORK
+        </div>
+
+        <h1 className="landing-title">BASE BLOCK</h1>
+        <p className="landing-subtitle">Stack. Blast. Compete on Base.</p>
 
         {isConnected && address ? (
-          <>
-            <div className="wallet-status">
-              <span className="dot connected" />
-              <span>CONNECTED</span>
+          <div className="landing-menu">
+            <div className="wallet-pill">
+              <span className="dot" />
+              CONNECTED
             </div>
-            <p className="address">{address.slice(0, 6)}...{address.slice(-4)}</p>
-            <p className="blink" style={{ margin: '12px 0' }}>SELECT MODE</p>
-            <button
-              className="primary"
-              onClick={() => handleSelectMode(0)}
-              disabled={status === 'pending' || status === 'confirming'}
-              style={{ marginBottom: 8 }}
-            >
-              {selectedMode === 0 && (status === 'pending' || status === 'confirming')
-                ? 'STARTING CLASSIC...'
-                : 'CLASSIC MODE'}
-            </button>
-            <button
-              className="warn"
-              onClick={() => handleSelectMode(1)}
-              disabled={status === 'pending' || status === 'confirming'}
-              style={{ marginBottom: 8 }}
-            >
-              {selectedMode === 1 && (status === 'pending' || status === 'confirming')
-                ? 'STARTING ARCADE...'
-                : 'ARCADE MODE'}
-            </button>
+            <p className="wallet-address">
+              {address.slice(0, 6)}...{address.slice(-4)}
+            </p>
+
+            <div className="feature-grid single-column">
+              <button
+                className="feature-card"
+                onClick={() => handleSelectMode(0)}
+                disabled={status === 'pending' || status === 'confirming'}
+                aria-label="Start Classic mode"
+              >
+                <div className="feature-icon">🧩</div>
+                <div className="feature-title">CLASSIC MODE</div>
+                <div className="feature-desc">
+                  Endless block stacking. Strategize every piece to keep the board clear.
+                </div>
+                {selectedMode === 0 && (status === 'pending' || status === 'confirming') && (
+                  <div className="tx-status" style={{ marginTop: 8 }}>
+                    <span className="dot pending" /> Starting onchain session…
+                  </div>
+                )}
+              </button>
+
+              <button
+                className="feature-card"
+                onClick={() => handleSelectMode(1)}
+                disabled={status === 'pending' || status === 'confirming'}
+                aria-label="Start Arcade mode"
+              >
+                <div className="feature-icon">⚡</div>
+                <div className="feature-title">ARCADE MODE</div>
+                <div className="feature-desc">
+                  Race the clock, hit level targets, and climb the leaderboard.
+                </div>
+                {selectedMode === 1 && (status === 'pending' || status === 'confirming') && (
+                  <div className="tx-status" style={{ marginTop: 8 }}>
+                    <span className="dot pending" /> Starting onchain session…
+                  </div>
+                )}
+              </button>
+            </div>
+
             <button className="secondary" onClick={() => setShowModal(true)}>
               DISCONNECT
             </button>
-          </>
+          </div>
         ) : (
-          <button className="primary" onClick={handleConnectWallet}>
-            CONNECT WALLET
-          </button>
-        )}
+          <div className="landing-actions">
+            <button className="primary" onClick={handleConnectWallet}>
+              <span className="btn-icon">👛</span>
+              CONNECT WALLET
+            </button>
 
-        {onViewLeaderboard && (
-          <button className="secondary" onClick={onViewLeaderboard} style={{ marginTop: 8 }}>
-            LEADERBOARD
-          </button>
+            {onViewLeaderboard && (
+              <button className="secondary" onClick={onViewLeaderboard}>
+                <span className="btn-icon">🏆</span>
+                LEADERBOARD
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -120,7 +147,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
 
             {isPending && (
               <div className="tx-status">
-                <span className="dot pending" /> Connecting...
+                <span className="dot pending" /> Connecting…
               </div>
             )}
 

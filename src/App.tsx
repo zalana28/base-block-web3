@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
+import { useAccount } from 'wagmi';
 import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
@@ -20,6 +21,7 @@ export default function App() {
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const [gameMode, setGameMode] = useState<0 | 1>(0);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
+  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const [manualSubmitted, setManualSubmitted] = useState(false);
@@ -59,6 +61,7 @@ export default function App() {
     gridRef.current = gameState.grid;
   }, [gameState.grid]);
 
+  // Auto-submit score on game over
   useEffect(() => {
     if (gameState.phase === "over") {
       setPhase("over");
@@ -94,8 +97,47 @@ export default function App() {
     };
   }, []);
 
+  const handleSelectPiece = useCallback((pieceId: string | null) => {
+    setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
+  }, []);
+
+  const handleBoardTap = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (selectedPieceId == null || !boardRef.current) return;
+      const piece = gameState.pieces.find((p): p is BlockPiece => p !== null && p.id === selectedPieceId);
+      if (!piece) return;
+
+      let rect = boardRectRef.current;
+      if (!rect) {
+        rect = boardRef.current.getBoundingClientRect();
+        boardRectRef.current = rect;
+        boardCellSizeRef.current = rect.width / 8;
+      }
+      const cellSize = boardCellSizeRef.current;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+
+      // Anchor at the visual center of the piece's bounding shape
+      const anchorRow = Math.floor((piece.shape.length - 1) / 2);
+      const anchorCol = Math.floor(((piece.shape[0]?.length ?? 1) - 1) / 2);
+
+      const col = Math.floor((clientX - rect.left) / cellSize) - anchorCol;
+      const row = Math.floor((clientY - rect.top) / cellSize) - anchorRow;
+      const pos = { row, col };
+
+      if (canPlace(gridRef.current, piece.shape, pos)) {
+        actions.placePiece(piece, pos);
+        setSelectedPieceId(null);
+      }
+    },
+    [selectedPieceId, gameState.pieces, actions],
+  );
+
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
+      // Clear any tap selection when user starts dragging
+      setSelectedPieceId(null);
+
       // Cancel any pending RAF from previous drag
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
@@ -225,95 +267,125 @@ export default function App() {
     setPhase("wallet");
   }, [actions, txReset]);
 
+  const ambientBackground = (
+    <>
+      <div className="ambient-grid" aria-hidden="true" />
+      <div className="vignette" aria-hidden="true" />
+      <div className="floating-blocks" aria-hidden="true">
+        <div className="float-block cyan" />
+        <div className="float-block blue" />
+        <div className="float-block green" />
+        <div className="float-block purple" />
+        <div className="float-block tiny" />
+      </div>
+    </>
+  );
+
   if (showLeaderboard) {
-    return <Leaderboard onClose={() => setShowLeaderboard(false)} />;
+    return (
+      <>
+        {ambientBackground}
+        <Leaderboard onClose={() => setShowLeaderboard(false)} />
+      </>
+    );
   }
 
   if (phase === "wallet") {
     return (
-      <WalletGate
-        onReady={handleStartGame}
-        onViewLeaderboard={() => setShowLeaderboard(true)}
-      />
+      <>
+        {ambientBackground}
+        <WalletGate
+          onReady={handleStartGame}
+          onViewLeaderboard={() => setShowLeaderboard(true)}
+        />
+      </>
     );
   }
 
   if (phase === "over") {
     return (
-      <GameOverModal
-        score={gameState.score}
-        bestScore={gameState.bestScore}
-        mode={gameState.mode}
-        level={gameState.level}
-        reason={gameOverReason}
-        onPlayAgain={handlePlayAgain}
-        onViewLeaderboard={() => setShowLeaderboard(true)}
-      />
+      <>
+        {ambientBackground}
+        <GameOverModal
+          score={gameState.score}
+          bestScore={gameState.bestScore}
+          mode={gameState.mode}
+          level={gameState.level}
+          reason={gameOverReason}
+          onPlayAgain={handlePlayAgain}
+          onViewLeaderboard={() => setShowLeaderboard(true)}
+        />
+      </>
     );
   }
 
   return (
-    <div className="game-screen">
-      <div className="game-header">
-        <div className="game-header-title">BASE BLOCK</div>
-        <div className="game-header-subtitle">ON BASE NETWORK</div>
-      </div>
-
-      <ScoreBoard
-        score={gameState.score}
-        bestScore={gameState.bestScore}
-        combo={gameState.combo}
-        streak={gameState.streak}
-        mode={gameState.mode}
-        level={gameState.level}
-        targetScore={gameState.targetScore}
-        timeLeft={gameState.timeLeft}
-      />
-
-      <GameBoard
-        grid={gameState.grid}
-        ghostPiece={dragState.piece}
-        ghostPos={dragState.ghost}
-        isGhostValid={dragState.ghostValid}
-        clearingRows={clearingRows}
-        clearingCols={clearingCols}
-        boardRef={boardRef}
-      />
-
-      {gameState.mode === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
-          <button
-            className="primary"
-            onClick={handleManualSubmit}
-            disabled={txStatus === 'pending' || txStatus === 'confirming'}
-            style={{ fontSize: 12, padding: '8px 20px' }}
-          >
-            {txStatus === 'pending' || txStatus === 'confirming'
-              ? '⏳ SUBMITTING...'
-              : txStatus === 'success' || manualSubmitted
-                ? '✅ SCORE SUBMITTED'
-                : '📤 SUBMIT SCORE'}
-          </button>
-          {txStatus === 'error' && txError && (
-            <span style={{ fontSize: 10, color: 'var(--danger)' }}>
-              {txError.message}
-            </span>
-          )}
+    <>
+      {ambientBackground}
+      <div className="game-screen">
+        <div className="game-header">
+          <div className="game-header-title">BASE BLOCK</div>
+          <div className="game-header-subtitle">ON BASE NETWORK</div>
         </div>
-      )}
 
-      <BlockTray
-        pieces={gameState.pieces}
-        draggedPieceId={dragState.piece?.id ?? null}
-        dragPos={dragState.pos}
-        cellSize={boardCellSizeRef.current}
-        onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
-        onDragEnd={handleDragEnd}
-      />
+        <ScoreBoard
+          score={gameState.score}
+          bestScore={gameState.bestScore}
+          combo={gameState.combo}
+          streak={gameState.streak}
+          mode={gameState.mode}
+          level={gameState.level}
+          targetScore={gameState.targetScore}
+          timeLeft={gameState.timeLeft}
+        />
 
-      <NextTray pieces={gameState.nextPieces} />
+        <GameBoard
+          grid={gameState.grid}
+          ghostPiece={dragState.piece}
+          ghostPos={dragState.ghost}
+          isGhostValid={dragState.ghostValid}
+          clearingRows={clearingRows}
+          clearingCols={clearingCols}
+          boardRef={boardRef}
+          onPointerDown={handleBoardTap}
+        />
 
-    </div>
+        {gameState.mode === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+            <button
+              className="primary"
+              onClick={handleManualSubmit}
+              disabled={txStatus === 'pending' || txStatus === 'confirming'}
+              style={{ fontSize: 12, padding: '8px 20px' }}
+            >
+              {txStatus === 'pending' || txStatus === 'confirming'
+                ? '⏳ SUBMITTING...'
+                : txStatus === 'success' || manualSubmitted
+                  ? '✅ SCORE SUBMITTED'
+                  : '📤 SUBMIT SCORE'}
+            </button>
+            {txStatus === 'error' && txError && (
+              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+                {txError.message}
+              </span>
+            )}
+          </div>
+        )}
+
+        <BlockTray
+          pieces={gameState.pieces}
+          draggedPieceId={dragState.piece?.id ?? null}
+          selectedPieceId={selectedPieceId}
+          dragPos={dragState.pos}
+          cellSize={boardCellSizeRef.current}
+          onDragStart={handleDragStart}
+          onDragMove={handleDragMove}
+          onDragEnd={handleDragEnd}
+          onSelectPiece={handleSelectPiece}
+        />
+
+        <NextTray pieces={gameState.nextPieces} />
+      </div>
+    </>
   );
 }

@@ -1,35 +1,11 @@
-import type { Abi } from 'viem';
 import { useReadContract } from 'wagmi';
 import { base } from '../config/chain.js';
-import { LEADERBOARD_ADDRESS } from '../config/wagmi.js';
-import { useLeaderboard } from '../hooks/useLeaderboard.js';
-
-const LEADERBOARD_ABI: Abi = [
-  {
-    inputs: [],
-    name: 'getTopScores',
-    outputs: [
-      {
-        components: [
-          { name: 'player', type: 'address' },
-          { name: 'name', type: 'string' },
-          { name: 'score', type: 'uint256' },
-          { name: 'level', type: 'uint256' },
-          { name: 'timestamp', type: 'uint256' },
-        ],
-        internalType: 'struct ScoreEntry[]',
-        name: '',
-        type: 'tuple[]',
-      },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-];
+import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
 
 type OnChainEntry = {
   player: string;
   name: string;
+  mode: number;
   score: bigint;
   level: number;
   timestamp: bigint;
@@ -51,14 +27,13 @@ function escapeHtml(str: string): string {
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
   const { data: topScores } = useReadContract({
-    address: LEADERBOARD_ADDRESS,
-    abi: LEADERBOARD_ABI,
+    address: GAME_CONTRACT_ADDRESS,
+    abi: GAME_CONTRACT_ABI,
     functionName: 'getTopScores',
+    args: [10],
     chainId: base.id,
     query: { staleTime: 60_000 },
   }) as { data: OnChainEntry[] | undefined };
-
-  const localHook = useLeaderboard();
 
   const entries: Entry[] = (() => {
     if (topScores && Array.isArray(topScores)) {
@@ -76,50 +51,46 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
           return b.score - a.score;
         });
     }
-    return localHook.entries;
+    return [];
   })();
 
-  const source = topScores ? 'Onchain + Local' : 'Local scores';
+  const source = 'Onchain';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
       <div className="panel">
-        <h1>LEADERBOARD</h1>
-        <h2>🏆 TOP BLOCK STACKERS 🏆</h2>
-        <ol style={{ textAlign: 'left', paddingLeft: '24px', margin: '16px 0' }}>
+        <div className="landing-badge" style={{ margin: '0 auto 0.75rem' }}>
+          <span className="dot" />
+          LEADERBOARD
+        </div>
+        <h1 style={{ marginBottom: '0.25rem' }}>TOP STACKERS</h1>
+        <h2>🏆 ON BASE NETWORK 🏆</h2>
+
+        <ol className="leaderboard-list">
           {entries.length === 0 ? (
-            <li style={{ fontSize: '10px', color: 'var(--text-dim)', listStyle: 'none', textAlign: 'center' }}>
+            <li className="leaderboard-empty">
               No scores yet — be the first!
             </li>
           ) : (
             entries.slice(0, 10).map((row, i) => (
-              <li
-                key={i}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '6px 0',
-                  borderBottom: '1px solid rgba(0,82,255,0.1)',
-                  fontSize: '10px',
-                }}
-              >
+              <li key={i} className="leaderboard-item">
                 <span>
-                  <span style={{ color: 'var(--base-bright)', marginRight: '8px' }}>#{i + 1}</span>
-                  <span style={{ color: 'var(--text)' }}>{escapeHtml(row.name)}</span>
+                  <span className="leaderboard-rank">#{i + 1}</span>
+                  <span className="leaderboard-name">{escapeHtml(row.name)}</span>
                   {row.level != null && (
-                    <span style={{ color: 'var(--text-dim)', marginLeft: '4px' }}>L{row.level}</span>
+                    <span className="leaderboard-level">L{row.level}</span>
                   )}
                 </span>
-                <span style={{ color: 'var(--frog)', fontFamily: 'monospace' }}>
+                <span className="leaderboard-score">
                   {row.score.toLocaleString()}
                 </span>
               </li>
             ))
           )}
         </ol>
-        <p style={{ fontSize: '8px', color: 'var(--text-dim)', textAlign: 'center', marginBottom: '16px' }}>
-          {source}
+
+        <p className="leaderboard-source">
+          {source} • {entries.length} entries
         </p>
         <button className="secondary" onClick={onClose}>
           CLOSE
