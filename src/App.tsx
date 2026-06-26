@@ -252,9 +252,6 @@ export default function App() {
         onDragEnd={handleDragEnd}
       />
 
-      <button className="btn-small" onClick={() => setShowLeaderboard(true)}>
-        🏆 LEADERBOARD
-      </button>
     </div>
   );
 }
