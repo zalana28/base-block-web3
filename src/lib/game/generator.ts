@@ -45,11 +45,33 @@ const SHAPE_LIBRARY: ShapeDef[] = [
   { name: 'diag2-r', shape: [[F, T], [T, F]], weight: 2 },
 ];
 
-function randomShape(): ShapeDef {
-  const total = SHAPE_LIBRARY.reduce((sum, s) => sum + s.weight, 0);
+const EASY_SHAPES = new Set([
+  '1x1', '1x2-h', '1x2-v', '1x3-h', '1x3-v', '2x2',
+]);
+
+const HARD_SHAPES = new Set([
+  '3x3', 'BigL-tl', 'BigL-tr', 'BigL-bl', 'BigL-br',
+  'T-up', 'T-down', 'S', 'Z',
+]);
+
+function getDifficultyWeight(def: ShapeDef, level: number): number {
+  const base = def.weight;
+  if (level <= 1) return base;
+
+  const easyBonus = EASY_SHAPES.has(def.name) ? -0.3 : 0;
+  const hardBonus = HARD_SHAPES.has(def.name) ? 0.3 : 0;
+  const levelFactor = Math.min((level - 1) * 0.15, 1.5);
+
+  let adjusted = base * (1 + easyBonus * levelFactor + hardBonus * levelFactor);
+  return Math.max(adjusted, 0.5);
+}
+
+function randomShape(level: number = 1): ShapeDef {
+  const weighted = SHAPE_LIBRARY.map((s) => ({ ...s, w: getDifficultyWeight(s, level) }));
+  const total = weighted.reduce((sum, s) => sum + s.w, 0);
   let n = Math.random() * total;
-  for (const s of SHAPE_LIBRARY) {
-    n -= s.weight;
+  for (const s of weighted) {
+    n -= s.w;
     if (n <= 0) return s;
   }
   return SHAPE_LIBRARY[0];
@@ -65,8 +87,8 @@ function freshId(): string {
   return `p${Date.now().toString(36)}-${nextId}`;
 }
 
-export function generatePiece(): BlockPiece {
-  const def = randomShape();
+export function generatePiece(level: number = 1): BlockPiece {
+  const def = randomShape(level);
   return {
     id: freshId(),
     name: def.name,
@@ -75,12 +97,12 @@ export function generatePiece(): BlockPiece {
   };
 }
 
-export function generateTrayBatch(): (BlockPiece | null)[] {
-  return [generatePiece(), generatePiece(), generatePiece()];
+export function generateTrayBatch(level: number = 1): (BlockPiece | null)[] {
+  return [generatePiece(level), generatePiece(level), generatePiece(level)];
 }
 
-export function generateThreePieces(): BlockPiece[] {
-  return [generatePiece(), generatePiece(), generatePiece()];
+export function generateThreePieces(level: number = 1): BlockPiece[] {
+  return [generatePiece(level), generatePiece(level), generatePiece(level)];
 }
 
 export function getShapeSize(shape: boolean[][]): { rows: number; cols: number } {

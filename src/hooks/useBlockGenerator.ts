@@ -1,29 +1,45 @@
-import { useState, useCallback, useMemo } from 'react';
-import { generateTrayBatch } from '../lib/game/generator.js';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import { generateTrayBatch, generatePiece } from '../lib/game/generator.js';
 import type { BlockPiece } from '../lib/game/types.js';
 
 export function useBlockGenerator(): {
   pieces: (BlockPiece | null)[];
-  regenerate: () => void;
-  markUsed: (id: string) => void;
+  nextPieces: (BlockPiece | null)[];
+  regenerate: (level?: number) => void;
+  markUsed: (id: string, level?: number) => void;
   clearAll: () => void;
 } {
   const [pieces, setPieces] = useState<(BlockPiece | null)[]>(() => generateTrayBatch());
+  const [nextPieces, setNextPieces] = useState<(BlockPiece | null)[]>(() => generateTrayBatch());
+  const levelRef = useRef(1);
 
-  const regenerate = useCallback(() => {
-    setPieces(generateTrayBatch());
+  const regenerate = useCallback((level?: number) => {
+    const lv = level ?? levelRef.current;
+    if (level !== undefined) levelRef.current = level;
+    const next = generateTrayBatch(lv);
+    setPieces(next);
+    setNextPieces(generateTrayBatch(lv));
   }, []);
 
-  const markUsed = useCallback((id: string) => {
-    setPieces((curr) => curr.map((p) => (p?.id === id ? null : p)));
+  const markUsed = useCallback((id: string, level?: number) => {
+    const lv = level ?? levelRef.current;
+    setPieces((curr) => {
+      const updated = curr.map((p) => (p?.id === id ? null : p));
+      const emptyIndex = updated.findIndex((p) => p === null);
+      if (emptyIndex !== -1) {
+        updated[emptyIndex] = generatePiece(lv);
+      }
+      return updated;
+    });
   }, []);
 
   const clearAll = useCallback(() => {
     setPieces([null, null, null]);
+    setNextPieces([null, null, null]);
   }, []);
 
   return useMemo(
-    () => ({ pieces, regenerate, markUsed, clearAll }),
-    [pieces, regenerate, markUsed, clearAll],
+    () => ({ pieces, nextPieces, regenerate, markUsed, clearAll }),
+    [pieces, nextPieces, regenerate, markUsed, clearAll],
   );
 }

@@ -1,6 +1,9 @@
 interface Props {
   score: number;
   bestScore: number;
+  mode?: 0 | 1;
+  level?: number;
+  reason?: 'no-moves' | 'time-up';
   onPlayAgain: () => void;
   onViewLeaderboard: () => void;
 }
@@ -8,15 +11,32 @@ interface Props {
 export default function GameOverModal({
   score,
   bestScore,
+  mode,
+  level,
+  reason,
   onPlayAgain,
   onViewLeaderboard,
 }: Props) {
+  const isTimeUp = reason === 'time-up';
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Game over">
       <div className="panel">
-        <div className="hero-mascot">💀</div>
-        <h1>GAME OVER</h1>
+        <div className="hero-mascot">{isTimeUp ? '⏰' : '💀'}</div>
+        <h1>{isTimeUp ? "TIME'S UP" : 'GAME OVER'}</h1>
         <h2>BLOCK BLAST COMPLETE</h2>
+
+        {mode === 1 && level != null && (
+          <div
+            style={{
+              fontSize: '14px',
+              color: 'var(--base-bright)',
+              margin: '8px 0 0',
+              letterSpacing: '2px',
+            }}
+          >
+            LEVEL {level}
+          </div>
+        )}
 
         <div
           style={{

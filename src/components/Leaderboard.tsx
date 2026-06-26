@@ -71,7 +71,10 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
           score: Number(e.score),
           level: e.level,
         }))
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => {
+          if (b.level !== a.level) return b.level - a.level;
+          return b.score - a.score;
+        });
     }
     return localHook.entries;
   })();

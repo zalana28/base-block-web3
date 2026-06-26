@@ -2,18 +2,26 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { useGameState } from "./hooks/useGameState.js";
+import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
+import NextTray from "./components/NextTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 
 type AppPhase = "wallet" | "playing" | "over";
+type GameOverReason = 'no-moves' | 'time-up';
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [gameMode, setGameMode] = useState<0 | 1>(0);
+  const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
+
+  const { submitScore } = useGameContract();
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -44,9 +52,26 @@ export default function App() {
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
 
+  // Ref untuk grid — hindari stale closure di RAF
+  const gridRef = useRef(gameState.grid);
   useEffect(() => {
-    if (gameState.phase === "over") setPhase("over");
-  }, [gameState.phase]);
+    gridRef.current = gameState.grid;
+  }, [gameState.grid]);
+
+  useEffect(() => {
+    if (gameState.phase === "over") {
+      setPhase("over");
+      if (gameState.timeLeft <= 0 && gameState.mode === 1) {
+        setGameOverReason('time-up');
+      } else {
+        setGameOverReason('no-moves');
+      }
+      if (!scoreSubmitted) {
+        submitScore(gameMode, gameState.score, gameState.level);
+        setScoreSubmitted(true);
+      }
+    }
+  }, [gameState.phase, gameState.score, gameState.level, gameState.timeLeft, gameState.mode, scoreSubmitted, submitScore, gameMode]);
 
   // Invalidate cached board rect on resize biar cell size tetap akurat
   useEffect(() => {
@@ -58,11 +83,29 @@ export default function App() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, []);
+
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
+      // Cancel any pending RAF from previous drag
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
       if (boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
         boardCellSizeRef.current = rect.width / 8;
+        // FIX: Save rect ke ref biar handleDragMove bisa pakai
+        boardRectRef.current = rect;
       }
       isDraggingRef.current = true;
       dragPieceRef.current = piece;
@@ -84,72 +127,92 @@ export default function App() {
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
-      if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
-        const piece = dragPieceRef.current;
-        const grab = grabOffsetRef.current;
-        const rect = boardRectRef.current;
-        const cellSize = boardCellSizeRef.current;
+      if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
+      
+      // FIX: Direct update tanpa RAF untuk responsiveness maksimal
+      const piece = dragPieceRef.current;
+      const grab = grabOffsetRef.current;
+      const rect = boardRectRef.current;
+      const cellSize = boardCellSizeRef.current;
 
-        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
-        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
-        const pos = { row, col };
+      const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
+      const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
+      const pos = { row, col };
 
-        const dragPos = {
-          x: clientX - grab.col * cellSize - cellSize / 2,
-          y: clientY - grab.row * cellSize - cellSize / 2,
-        };
-        setDragState((prev) => ({
-          ...prev,
-          pos: dragPos,
-          ghost: pos,
-          ghostValid: canPlace(gameState.grid, piece.shape, pos),
-        }));
-      });
+      const dragPos = {
+        x: clientX - grab.col * cellSize - cellSize / 2,
+        y: clientY - grab.row * cellSize - cellSize / 2,
+      };
+
+      const isValid = canPlace(gridRef.current, piece.shape, pos);
+
+      setDragState((prev) => ({
+        ...prev,
+        pos: dragPos,
+        ghost: pos,
+        ghostValid: isValid,
+      }));
     },
-    [gameState.grid],
+    [],
   );
+
 
   const handleDragEnd = useCallback(
     (clientX: number, clientY: number) => {
+      // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
+      const wasDragging = isDraggingRef.current;
+      const piece = dragPieceRef.current;
+      const grab = grabOffsetRef.current;
+      
+      isDraggingRef.current = false;
+      dragPieceRef.current = null;
+      grabOffsetRef.current = { row: 0, col: 0 };
+      
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
 
-      if (isDraggingRef.current && dragPieceRef.current) {
-        const piece = dragPieceRef.current;
-        const grab = grabOffsetRef.current;
-        const rect = boardRectRef.current;
-        if (!rect) return;
+      // Clear drag visual immediately
+      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
+
+      if (wasDragging && piece) {
+        let rect = boardRectRef.current;
+        if (!rect) {
+          // Fallback: recalculate rect kalau null (edge case resize)
+          if (boardRef.current) {
+            rect = boardRef.current.getBoundingClientRect();
+            boardRectRef.current = rect;
+          } else {
+            return;
+          }
+        }
+        
         const cellSize = boardCellSizeRef.current;
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
         const pos = { row, col };
 
-        if (canPlace(gameState.grid, piece.shape, pos)) {
+        // Pakai gridRef.current untuk consistency
+        if (canPlace(gridRef.current, piece.shape, pos)) {
           actions.placePiece(piece, pos);
         }
       }
-
-      isDraggingRef.current = false;
-      dragPieceRef.current = null;
-      grabOffsetRef.current = { row: 0, col: 0 };
-      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
     },
-    [gameState.grid, actions],
+    [actions],
   );
 
-  const handleStartGame = useCallback(() => {
-    actions.startGame();
+
+  const handleStartGame = useCallback((mode: 0 | 1) => {
+    setGameMode(mode);
+    actions.startGame(mode);
     setPhase("playing");
   }, [actions]);
 
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
+    setScoreSubmitted(false);
+    setGameOverReason('no-moves');
     setPhase("wallet");
   }, [actions]);
 
@@ -171,6 +234,9 @@ export default function App() {
       <GameOverModal
         score={gameState.score}
         bestScore={gameState.bestScore}
+        mode={gameState.mode}
+        level={gameState.level}
+        reason={gameOverReason}
         onPlayAgain={handlePlayAgain}
         onViewLeaderboard={() => setShowLeaderboard(true)}
       />
@@ -189,6 +255,10 @@ export default function App() {
         bestScore={gameState.bestScore}
         combo={gameState.combo}
         streak={gameState.streak}
+        mode={gameState.mode}
+        level={gameState.level}
+        targetScore={gameState.targetScore}
+        timeLeft={gameState.timeLeft}
       />
 
       <GameBoard
@@ -211,9 +281,8 @@ export default function App() {
         onDragEnd={handleDragEnd}
       />
 
-      <button className="btn-small" onClick={() => setShowLeaderboard(true)}>
-        🏆 LEADERBOARD
-      </button>
+      <NextTray pieces={gameState.nextPieces} />
+
     </div>
   );
 }

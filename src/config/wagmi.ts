@@ -5,7 +5,7 @@ import { baseAccount, injected } from "wagmi/connectors";
 
 export const LEADERBOARD_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
-export const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_xxxxxx"] });
+export const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_rhgm3bxx"] });
 
 export const wagmiConfig = createConfig({
   chains: [base],
