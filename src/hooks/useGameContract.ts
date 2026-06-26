@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
+import { DATA_SUFFIX } from '../config/wagmi.js';
 import { base } from '../config/chain.js';
 
 type GameMode = 0 | 1; // 0 = Classic, 1 = Arcade
@@ -49,6 +50,7 @@ export function useGameContract() {
         functionName: 'startGame',
         args: [mode],
         chainId: base.id,
+        dataSuffix: DATA_SUFFIX,
       });
     },
     [writeContract, reset]
@@ -63,6 +65,7 @@ export function useGameContract() {
         functionName: 'submitScore',
         args: [mode, BigInt(score), BigInt(level)],
         chainId: base.id,
+        dataSuffix: DATA_SUFFIX,
       });
     },
     [writeContract, reset]
