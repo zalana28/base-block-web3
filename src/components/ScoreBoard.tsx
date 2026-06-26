@@ -41,52 +41,32 @@ export default function ScoreBoard({
 
   return (
     <div className="score-board" aria-label="Score display">
-      <div className="score-board-left">
-        <ScoreBlock label="SCORE" value={score} />
-        <ScoreBlock label="BEST" value={bestScore} />
-      </div>
-      <div className="score-board-right">
-        <ScoreBlock label="COMBO" value={combo} />
-        <ScoreBlock label="STREAK" value={streak} />
-        {mode === 1 && level != null && (
-          <ScoreBlock label="LEVEL" value={level} />
-        )}
+      <div className="score-board-row">
+        <div className="score-board-left">
+          <ScoreBlock label="SCORE" value={score} />
+          <ScoreBlock label="BEST" value={bestScore} />
+        </div>
+        <div className="score-board-right">
+          <ScoreBlock label="COMBO" value={combo} />
+          <ScoreBlock label="STREAK" value={streak} />
+          {mode === 1 && level != null && (
+            <ScoreBlock label="LEVEL" value={level} />
+          )}
+        </div>
       </div>
 
       {mode === 1 && (
-        <div style={{ width: '100%', marginTop: 8 }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 10,
-              color: 'var(--text-dim)',
-              marginBottom: 4,
-            }}
-          >
+        <div className="time-target-bar">
+          <div className="time-target-labels">
             <span>TARGET {targetScore}</span>
             <span style={{ color: timeLeft != null ? timeColor : undefined }}>
               ⏱ {timeLeft ?? 0}s
             </span>
           </div>
-          <div
-            style={{
-              width: '100%',
-              height: 4,
-              background: 'rgba(0,82,255,0.15)',
-              borderRadius: 2,
-              overflow: 'hidden',
-            }}
-          >
+          <div className="time-target-track">
             <div
-              style={{
-                width: `${progress * 100}%`,
-                height: '100%',
-                background: 'var(--frog)',
-                borderRadius: 2,
-                transition: 'width 0.3s ease',
-                boxShadow: '0 0 8px var(--frog-glow)',
-              }}
+              className="time-target-fill"
+              style={{ width: `${progress * 100}%` }}
             />
           </div>
         </div>

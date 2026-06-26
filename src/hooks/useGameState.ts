@@ -37,7 +37,7 @@ function playLevelUpSound() {
 
 export function useGameState(): [GameState, Actions] {
   const { score, bestScore, addScore, reset: resetScore } = useScore();
-  const { pieces, regenerate, markUsed } = useBlockGenerator();
+  const { pieces, nextPieces, regenerate, markUsed } = useBlockGenerator();
 
   const [grid, setGrid] = useState<Grid>(createGrid());
   const [combo, setCombo] = useState(0);
@@ -63,6 +63,7 @@ export function useGameState(): [GameState, Actions] {
     () => ({
       grid,
       pieces,
+      nextPieces,
       score,
       bestScore,
       combo, maxCombo, streak, totalCleared, phase,
@@ -71,7 +72,7 @@ export function useGameState(): [GameState, Actions] {
       targetScore,
       timeLeft,
     }),
-    [grid, pieces, score, bestScore, combo, maxCombo, streak, totalCleared, phase, mode, level, targetScore, timeLeft],
+    [grid, pieces, nextPieces, score, bestScore, combo, maxCombo, streak, totalCleared, phase, mode, level, targetScore, timeLeft],
   );
 
   const startGame = useCallback((initialMode: 0 | 1 = 0) => {

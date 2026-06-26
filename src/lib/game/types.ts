@@ -29,6 +29,7 @@ export interface ClearResult {
 export interface GameState {
   grid: Grid;
   pieces: (BlockPiece | null)[];
+  nextPieces: (BlockPiece | null)[];
   score: number;
   bestScore: number;
   combo: number;

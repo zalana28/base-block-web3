@@ -21,52 +21,43 @@ export default function GameOverModal({
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Game over">
       <div className="panel">
-        <div className="hero-mascot">{isTimeUp ? '⏰' : '💀'}</div>
-        <h1>{isTimeUp ? "TIME'S UP" : 'GAME OVER'}</h1>
-        <h2>BLOCK BLAST COMPLETE</h2>
+        <div className="landing-badge" style={{ margin: '0 auto 0.75rem' }}>
+          <span className="dot" />
+          {isTimeUp ? "TIME'S UP" : 'GAME OVER'}
+        </div>
+        <h1 style={{ marginBottom: '0.25rem' }}>BLOCK BLAST COMPLETE</h1>
+        <h2>{isTimeUp ? '⏰ Out of time' : '💀 No moves left'}</h2>
 
         {mode === 1 && level != null && (
           <div
             style={{
-              fontSize: '14px',
+              fontSize: 'clamp(0.75rem, 3.6vw, 0.875rem)',
               color: 'var(--base-bright)',
-              margin: '8px 0 0',
-              letterSpacing: '2px',
+              margin: '0.25rem 0 0',
+              letterSpacing: '0.12em',
             }}
           >
             LEVEL {level}
           </div>
         )}
 
-        <div
-          style={{
-            fontSize: '36px',
-            color: 'var(--frog)',
-            textShadow: '0 0 12px var(--frog-glow)',
-            margin: '16px 0 8px',
-            letterSpacing: '2px',
-          }}
-        >
+        <div className="final-score">
           {score.toLocaleString()}
         </div>
-        <p style={{ margin: '0 0 20px' }}>FINAL SCORE</p>
+        <p className="final-score-label">FINAL SCORE</p>
 
-        <div
-          style={{
-            fontSize: '11px',
-            color: 'var(--base-bright)',
-            marginBottom: '20px',
-          }}
-        >
+        <div className="best-score">
           BEST: {bestScore.toLocaleString()}
         </div>
 
-        <button className="primary" onClick={onPlayAgain}>
-          PLAY AGAIN
-        </button>
-        <button className="secondary" onClick={onViewLeaderboard}>
-          LEADERBOARD
-        </button>
+        <div className="landing-actions" style={{ marginTop: '0.5rem' }}>
+          <button className="primary" onClick={onPlayAgain}>
+            PLAY AGAIN
+          </button>
+          <button className="secondary" onClick={onViewLeaderboard}>
+            LEADERBOARD
+          </button>
+        </div>
       </div>
     </div>
   );
