@@ -2,18 +2,26 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { useGameState } from "./hooks/useGameState.js";
+import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
+import NextTray from "./components/NextTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 
 type AppPhase = "wallet" | "playing" | "over";
+type GameOverReason = 'no-moves' | 'time-up';
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [gameMode, setGameMode] = useState<0 | 1>(0);
+  const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
+
+  const { submitScore } = useGameContract();
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -51,8 +59,19 @@ export default function App() {
   }, [gameState.grid]);
 
   useEffect(() => {
-    if (gameState.phase === "over") setPhase("over");
-  }, [gameState.phase]);
+    if (gameState.phase === "over") {
+      setPhase("over");
+      if (gameState.timeLeft <= 0 && gameState.mode === 1) {
+        setGameOverReason('time-up');
+      } else {
+        setGameOverReason('no-moves');
+      }
+      if (!scoreSubmitted) {
+        submitScore(gameMode, gameState.score, gameState.level);
+        setScoreSubmitted(true);
+      }
+    }
+  }, [gameState.phase, gameState.score, gameState.level, gameState.timeLeft, gameState.mode, scoreSubmitted, submitScore, gameMode]);
 
   // Invalidate cached board rect on resize biar cell size tetap akurat
   useEffect(() => {
@@ -184,13 +203,16 @@ export default function App() {
   );
 
 
-  const handleStartGame = useCallback(() => {
-    actions.startGame();
+  const handleStartGame = useCallback((mode: 0 | 1) => {
+    setGameMode(mode);
+    actions.startGame(mode);
     setPhase("playing");
   }, [actions]);
 
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
+    setScoreSubmitted(false);
+    setGameOverReason('no-moves');
     setPhase("wallet");
   }, [actions]);
 
@@ -212,6 +234,9 @@ export default function App() {
       <GameOverModal
         score={gameState.score}
         bestScore={gameState.bestScore}
+        mode={gameState.mode}
+        level={gameState.level}
+        reason={gameOverReason}
         onPlayAgain={handlePlayAgain}
         onViewLeaderboard={() => setShowLeaderboard(true)}
       />
@@ -230,6 +255,10 @@ export default function App() {
         bestScore={gameState.bestScore}
         combo={gameState.combo}
         streak={gameState.streak}
+        mode={gameState.mode}
+        level={gameState.level}
+        targetScore={gameState.targetScore}
+        timeLeft={gameState.timeLeft}
       />
 
       <GameBoard
@@ -251,6 +280,8 @@ export default function App() {
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
       />
+
+      <NextTray pieces={gameState.nextPieces} />
 
     </div>
   );

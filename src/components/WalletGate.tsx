@@ -1,21 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useConnect, useAccount } from 'wagmi';
-import type { Address, Abi } from 'viem';
-import { useBuilderCodeTransaction } from '../hooks/useBuilderCodeTransaction.js';
-
-const GAME_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
-const GAME_ABI: Abi = [
-  {
-    inputs: [
-      { name: 'score', type: 'uint256' },
-      { name: 'level', type: 'uint256' },
-    ],
-    name: 'recordPlay',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-];
+import { useGameContract } from '../hooks/useGameContract.js';
 
 const CONNECTOR_ICONS: Record<string, string> = {
   'Base Account': '🔗',
@@ -30,20 +15,16 @@ function getConnectorIcon(name: string): string {
 }
 
 interface Props {
-  onReady: () => void;
+  onReady: (mode: 0 | 1) => void;
   onViewLeaderboard?: () => void;
 }
 
 export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
   const [showModal, setShowModal] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<0 | 1 | null>(null);
   const { connectors, connect, isPending } = useConnect();
   const { address, isConnected } = useAccount();
-
-  const { send, status, error } = useBuilderCodeTransaction({
-    address: GAME_CONTRACT_ADDRESS,
-    abi: GAME_ABI,
-    chainId: 8453, // base chain id
-  });
+  const { startGame, status, error } = useGameContract();
 
   function handleConnectWallet() {
     setShowModal(true);
@@ -53,16 +34,17 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
     connect({ connector });
   }
 
-  function handleEnterGame() {
-    send('recordPlay', [BigInt(0), BigInt(1)]);
+  function handleSelectMode(mode: 0 | 1) {
+    setSelectedMode(mode);
+    startGame(mode);
   }
 
   // Auto-transition on tx success
   useEffect(() => {
-    if (status === 'success' && isConnected) {
-      onReady();
+    if (status === 'success' && isConnected && selectedMode !== null) {
+      onReady(selectedMode);
     }
-  }, [status, isConnected, onReady]);
+  }, [status, isConnected, selectedMode, onReady]);
 
   return (
     <div className="overlay">
@@ -79,8 +61,26 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
               <span>CONNECTED</span>
             </div>
             <p className="address">{address.slice(0, 6)}...{address.slice(-4)}</p>
-            <button className="warn" onClick={handleEnterGame}>
-              ENTER GAME &amp; PLAY
+            <p className="blink" style={{ margin: '12px 0' }}>SELECT MODE</p>
+            <button
+              className="primary"
+              onClick={() => handleSelectMode(0)}
+              disabled={status === 'pending' || status === 'confirming'}
+              style={{ marginBottom: 8 }}
+            >
+              {selectedMode === 0 && (status === 'pending' || status === 'confirming')
+                ? 'STARTING CLASSIC...'
+                : 'CLASSIC MODE'}
+            </button>
+            <button
+              className="warn"
+              onClick={() => handleSelectMode(1)}
+              disabled={status === 'pending' || status === 'confirming'}
+              style={{ marginBottom: 8 }}
+            >
+              {selectedMode === 1 && (status === 'pending' || status === 'confirming')
+                ? 'STARTING ARCADE...'
+                : 'ARCADE MODE'}
             </button>
             <button className="secondary" onClick={() => setShowModal(true)}>
               DISCONNECT
@@ -126,7 +126,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
 
             {status === 'error' && error && (
               <div className="tx-status" style={{ color: 'var(--danger)' }}>
-                {error.shortMessage ?? error.message}
+                {error.message}
               </div>
             )}
 
