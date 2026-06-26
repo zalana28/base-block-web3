@@ -110,10 +110,19 @@ npm run build
 
 **BUT** Frogger's `package-lock.json` locked ke:
 - `@coinbase/onchainkit@0.38.0` (NOT 0.38.19)
-- `wagmi@2.13.0` (NOT 2.19.5)
-- `viem@2.21.0` (NOT 2.53.1)
+- `wagmi@2.19.5` (NOT 2.13.0) — **baseAccount export added in 2.19+**
+- `viem@2.53.1` (NOT 2.21.0) — **experimental/erc7821 export needed by wagmi 2.19.5**
 
 Base Block tanpa lock file → npm install latest within `^` range → broke compatibility.
+
+**Actual working versions:**
+```json
+{
+  "wagmi": "2.19.5",    // Has baseAccount export
+  "viem": "2.53.1",     // Has experimental/erc7821 (required by porto@0.2.35 transitive dep)
+  "@coinbase/onchainkit": "0.38.0"
+}
+```
 
 ---
 
