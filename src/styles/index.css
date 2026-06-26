@@ -23,6 +23,7 @@
   --frog-dark: #00c853;
   --frog-glow: rgba(0, 230, 118, 0.55);
   --yellow: #ffea00;
+  --warning: #ff9800;
   --danger: #ef4444;
 
   --text: #e2e8f0;
@@ -715,6 +716,30 @@ button .btn-icon {
   z-index: 10;
   touch-action: none;
   flex-shrink: 0;
+}
+
+.next-tray {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.375rem;
+  flex-shrink: 0;
+}
+
+.next-tray-label {
+  font-size: 0.5rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  margin-bottom: 0.25rem;
+  display: block;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.next-tray-pieces {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  opacity: 0.55;
 }
 
 .tray-slot {

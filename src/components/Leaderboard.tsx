@@ -4,6 +4,7 @@ import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js'
 
 type OnChainEntry = {
   player: string;
+  name: string;
   mode: number;
   score: bigint;
   level: number;
@@ -39,11 +40,16 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
       const valid = topScores.filter(
         (e) => e.player !== '0x0000000000000000000000000000000000000000' && e.score > 0n,
       );
-      return valid.map((e) => ({
-        name: e.player.slice(0, 6) + '...' + e.player.slice(-4),
-        score: Number(e.score),
-        level: Number(e.level),
-      }));
+      return valid
+        .map((e) => ({
+          name: e.name || e.player.slice(0, 8) + '...',
+          score: Number(e.score),
+          level: e.level,
+        }))
+        .sort((a, b) => {
+          if (b.level !== a.level) return b.level - a.level;
+          return b.score - a.score;
+        });
     }
     return [];
   })();

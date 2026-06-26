@@ -36,7 +36,7 @@ export default function ScoreBoard({
     timeLeft != null && timeLeft <= 10
       ? 'var(--danger)'
       : timeLeft != null && timeLeft <= 30
-        ? 'var(--yellow)'
+        ? 'var(--warning)'
         : 'var(--frog)';
 
   return (

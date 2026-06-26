@@ -6,6 +6,7 @@ import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
+import NextTray from "./components/NextTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
@@ -22,7 +23,6 @@ export default function App() {
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
 
-  const { address } = useAccount();
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const [manualSubmitted, setManualSubmitted] = useState(false);
 
@@ -323,68 +323,69 @@ export default function App() {
     <>
       {ambientBackground}
       <div className="game-screen">
-      <div className="game-header">
-        <div className="game-header-title">BASE BLOCK</div>
-        <div className="game-header-subtitle">ON BASE NETWORK</div>
-      </div>
-
-      <ScoreBoard
-        score={gameState.score}
-        bestScore={gameState.bestScore}
-        combo={gameState.combo}
-        streak={gameState.streak}
-        mode={gameState.mode}
-        level={gameState.level}
-        targetScore={gameState.targetScore}
-        timeLeft={gameState.timeLeft}
-      />
-
-      <GameBoard
-        grid={gameState.grid}
-        ghostPiece={dragState.piece}
-        ghostPos={dragState.ghost}
-        isGhostValid={dragState.ghostValid}
-        clearingRows={clearingRows}
-        clearingCols={clearingCols}
-        boardRef={boardRef}
-        onPointerDown={handleBoardTap}
-      />
-
-      {gameState.mode === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
-          <button
-            className="primary"
-            onClick={handleManualSubmit}
-            disabled={txStatus === 'pending' || txStatus === 'confirming'}
-            style={{ fontSize: 12, padding: '8px 20px' }}
-          >
-            {txStatus === 'pending' || txStatus === 'confirming'
-              ? '⏳ SUBMITTING...'
-              : txStatus === 'success' || manualSubmitted
-                ? '✅ SCORE SUBMITTED'
-                : '📤 SUBMIT SCORE'}
-          </button>
-          {txStatus === 'error' && txError && (
-            <span style={{ fontSize: 10, color: 'var(--danger)' }}>
-              {txError.message}
-            </span>
-          )}
+        <div className="game-header">
+          <div className="game-header-title">BASE BLOCK</div>
+          <div className="game-header-subtitle">ON BASE NETWORK</div>
         </div>
-      )}
 
-      <BlockTray
-        pieces={gameState.pieces}
-        draggedPieceId={dragState.piece?.id ?? null}
-        selectedPieceId={selectedPieceId}
-        dragPos={dragState.pos}
-        cellSize={boardCellSizeRef.current}
-        onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
-        onDragEnd={handleDragEnd}
-        onSelectPiece={handleSelectPiece}
-      />
+        <ScoreBoard
+          score={gameState.score}
+          bestScore={gameState.bestScore}
+          combo={gameState.combo}
+          streak={gameState.streak}
+          mode={gameState.mode}
+          level={gameState.level}
+          targetScore={gameState.targetScore}
+          timeLeft={gameState.timeLeft}
+        />
 
-    </div>
+        <GameBoard
+          grid={gameState.grid}
+          ghostPiece={dragState.piece}
+          ghostPos={dragState.ghost}
+          isGhostValid={dragState.ghostValid}
+          clearingRows={clearingRows}
+          clearingCols={clearingCols}
+          boardRef={boardRef}
+          onPointerDown={handleBoardTap}
+        />
+
+        {gameState.mode === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+            <button
+              className="primary"
+              onClick={handleManualSubmit}
+              disabled={txStatus === 'pending' || txStatus === 'confirming'}
+              style={{ fontSize: 12, padding: '8px 20px' }}
+            >
+              {txStatus === 'pending' || txStatus === 'confirming'
+                ? '⏳ SUBMITTING...'
+                : txStatus === 'success' || manualSubmitted
+                  ? '✅ SCORE SUBMITTED'
+                  : '📤 SUBMIT SCORE'}
+            </button>
+            {txStatus === 'error' && txError && (
+              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+                {txError.message}
+              </span>
+            )}
+          </div>
+        )}
+
+        <BlockTray
+          pieces={gameState.pieces}
+          draggedPieceId={dragState.piece?.id ?? null}
+          selectedPieceId={selectedPieceId}
+          dragPos={dragState.pos}
+          cellSize={boardCellSizeRef.current}
+          onDragStart={handleDragStart}
+          onDragMove={handleDragMove}
+          onDragEnd={handleDragEnd}
+          onSelectPiece={handleSelectPiece}
+        />
+
+        <NextTray pieces={gameState.nextPieces} />
+      </div>
     </>
   );
 }
