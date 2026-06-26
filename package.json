@@ -21,6 +21,9 @@
     "viem": "2.21.0",
     "wagmi": "2.13.0"
   },
+  "overrides": {
+    "@base-org/account": "latest"
+  },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@testing-library/jest-dom": "^6.9.1",

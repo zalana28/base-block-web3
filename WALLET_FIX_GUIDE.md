@@ -21,7 +21,7 @@ npm ls wagmi viem @coinbase/onchainkit
 
 ### Step 1: Update `package.json`
 
-Remove caret `^` prefix dari dependencies biar ga auto-upgrade:
+**A) Remove caret `^` prefix** dari dependencies biar ga auto-upgrade:
 
 ```diff
   "dependencies": {
@@ -41,6 +41,17 @@ Remove caret `^` prefix dari dependencies biar ga auto-upgrade:
 +    "wagmi": "2.13.0"
   },
 ```
+
+**B) Add package override** untuk latest Base Account SDK (recommended by Base docs):
+
+```diff
+  "dependencies": { ... },
++  "overrides": {
++    "@base-org/account": "latest"
++  },
+```
+
+**Why override?** Per [Base Account docs](https://docs.base.org/base-account/framework-integrations/rainbowkit), using latest `@base-org/account` gives bug fixes + improved wallet_connect compatibility.
 
 ### Step 2: Clean Install
 
