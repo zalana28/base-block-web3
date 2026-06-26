@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://mainnet.base.org https://base.publicnode.com https://1rpc.io https://exceptions.coinbase.com https://keys.coinbase.com https://sessions.coinbase.com https://go.wallet.coinbase.com https://chain-proxy.wallet.coinbase.com https://api.wallet.coinbase.com https://rpc.wallet.coinbase.com https://paymaster.base.org https://basescan.org https://api.basescan.org; frame-src https://keys.coinbase.com https://go.wallet.coinbase.com; worker-src 'self' blob:;"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src https:; worker-src 'self' blob:;"
         }
       ]
     }
