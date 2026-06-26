@@ -28,7 +28,8 @@ export interface ClearResult {
 
 export interface GameState {
   grid: Grid;
-  pieces: (BlockPiece | null)[]; // length 3, null = slot kosong
+  pieces: (BlockPiece | null)[];
+  nextPieces: (BlockPiece | null)[];
   score: number;
   bestScore: number;
   combo: number;
@@ -36,6 +37,10 @@ export interface GameState {
   streak: number;
   totalCleared: number;
   phase: 'menu' | 'playing' | 'over';
+  mode: 0 | 1;
+  level: number;
+  targetScore: number;
+  timeLeft: number;
 }
 
 export interface PlacedPiece {

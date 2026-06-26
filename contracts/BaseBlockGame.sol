@@ -33,7 +33,7 @@ contract BaseBlockGame {
                 arcadeBestScore[msg.sender] = score;
                 emit NewHighScore(msg.sender, mode, oldScore, score);
             }
-            if (level > arcadeHighestLevel[msg.sender]) {
+            if (mode == 1 && level > arcadeHighestLevel[msg.sender]) {
                 arcadeHighestLevel[msg.sender] = level;
             }
         }
