@@ -79,25 +79,12 @@ export function useGameState(): [GameState, Actions] {
 
       markUsed(piece.id);
 
-      // Cek apakah ini blok terakhir di batch
-      const remainingAfter = pieces.filter(
-        (p): p is BlockPiece => p !== null && p.id !== piece.id,
-      );
-
-      if (remainingAfter.length === 0) {
-        // Batch habis → regenerate, cek game over di useEffect setelah pieces baru muncul
-        justRegeneratedRef.current = true;
-        regenerate();
-      } else {
-        // Masih ada blok tersisa → cek apakah masih bisa ditempatkan
-        if (!canPlaceAnyOfPieces(afterClear, remainingAfter)) {
-          setPhase('over');
-        }
-      }
+      // Auto-refill sudah handle di useBlockGenerator.markUsed
+      // Cek game over dilakukan di useEffect pas pieces update
 
       return true;
     },
-    [phase, grid, streak, combo, addScore, markUsed, regenerate, pieces],
+    [phase, grid, streak, combo, addScore, markUsed],
   );
 
   // Setelah regenerasi batch, cek apakah ada yang bisa ditempatkan
@@ -109,6 +96,19 @@ export function useGameState(): [GameState, Actions] {
     if (!canPlaceAnyOfPieces(grid, visiblePieces)) {
       setPhase('over');
     }
+  }, [visiblePieces, grid, phase]);
+
+  // Cek game over setiap pieces update (termasuk setelah auto-refill)
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    if (visiblePieces.length === 0) return;
+    // Debounce cek supaya ga bentrok dengan placement animation
+    const timer = setTimeout(() => {
+      if (!canPlaceAnyOfPieces(grid, visiblePieces)) {
+        setPhase('over');
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [visiblePieces, grid, phase]);
 
   const isGameOver = useCallback((): boolean => {

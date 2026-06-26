@@ -108,54 +108,67 @@ export default function App() {
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
-      if (!isDraggingRef.current || !dragPieceRef.current || !boardRef.current) return;
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
       
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        // FIX: Cek boardRectRef.current setelah di-set di handleDragStart
-        if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
-        
-        const piece = dragPieceRef.current;
-        const grab = grabOffsetRef.current;
-        const rect = boardRectRef.current;
-        const cellSize = boardCellSizeRef.current;
+      // FIX: Direct update tanpa RAF untuk responsiveness maksimal
+      const piece = dragPieceRef.current;
+      const grab = grabOffsetRef.current;
+      const rect = boardRectRef.current;
+      const cellSize = boardCellSizeRef.current;
 
-        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
-        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
-        const pos = { row, col };
+      const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
+      const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
+      const pos = { row, col };
 
-        const dragPos = {
-          x: clientX - grab.col * cellSize - cellSize / 2,
-          y: clientY - grab.row * cellSize - cellSize / 2,
-        };
+      const dragPos = {
+        x: clientX - grab.col * cellSize - cellSize / 2,
+        y: clientY - grab.row * cellSize - cellSize / 2,
+      };
 
-        // FIX: Pakai gridRef.current biar selalu dapet grid terbaru (hindari stale closure)
-        const isValid = canPlace(gridRef.current, piece.shape, pos);
+      const isValid = canPlace(gridRef.current, piece.shape, pos);
 
-        setDragState((prev) => ({
-          ...prev,
-          pos: dragPos,
-          ghost: pos,
-          ghostValid: isValid,
-        }));
-      });
+      setDragState((prev) => ({
+        ...prev,
+        pos: dragPos,
+        ghost: pos,
+        ghostValid: isValid,
+      }));
     },
-    [], // Dependency kosong karena pakai refs, bukan state
+    [],
   );
+
 
   const handleDragEnd = useCallback(
     (clientX: number, clientY: number) => {
+      // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
+      const wasDragging = isDraggingRef.current;
+      const piece = dragPieceRef.current;
+      const grab = grabOffsetRef.current;
+      
+      isDraggingRef.current = false;
+      dragPieceRef.current = null;
+      grabOffsetRef.current = { row: 0, col: 0 };
+      
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
 
-      if (isDraggingRef.current && dragPieceRef.current) {
-        const piece = dragPieceRef.current;
-        const grab = grabOffsetRef.current;
-        const rect = boardRectRef.current;
-        if (!rect) return;
+      // Clear drag visual immediately
+      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
+
+      if (wasDragging && piece) {
+        let rect = boardRectRef.current;
+        if (!rect) {
+          // Fallback: recalculate rect kalau null (edge case resize)
+          if (boardRef.current) {
+            rect = boardRef.current.getBoundingClientRect();
+            boardRectRef.current = rect;
+          } else {
+            return;
+          }
+        }
+        
         const cellSize = boardCellSizeRef.current;
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
@@ -166,14 +179,10 @@ export default function App() {
           actions.placePiece(piece, pos);
         }
       }
-
-      isDraggingRef.current = false;
-      dragPieceRef.current = null;
-      grabOffsetRef.current = { row: 0, col: 0 };
-      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
     },
     [actions],
   );
+
 
   const handleStartGame = useCallback(() => {
     actions.startGame();

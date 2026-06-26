@@ -15,7 +15,19 @@ export function useBlockGenerator(): {
   }, []);
 
   const markUsed = useCallback((id: string) => {
-    setPieces((curr) => curr.map((p) => (p?.id === id ? null : p)));
+    setPieces((curr) => {
+      const updated = curr.map((p) => (p?.id === id ? null : p));
+      
+      // FIX: Auto-refill individual slot yang kosong
+      const emptyIndex = updated.findIndex((p) => p === null);
+      if (emptyIndex !== -1) {
+        // Generate 1 piece baru untuk slot kosong
+        const newBatch = generateTrayBatch();
+        updated[emptyIndex] = newBatch[0];
+      }
+      
+      return updated;
+    });
   }, []);
 
   const clearAll = useCallback(() => {

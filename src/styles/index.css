@@ -198,12 +198,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 }
 .tray-slot {
   width: 96px; height: 96px; border-radius: 8px;
-  border: 2px dashed rgba(0,82,255,0.25);
+  border: none;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,82,255,0.03);
+  background: transparent;
   touch-action: none;
 }
-.tray-slot.filled { border-style: solid; background: rgba(0,82,255,0.06); }
+.tray-slot.filled { border-style: none; background: transparent; }
+
 
 /* Block Shape */
 .block-shape {
