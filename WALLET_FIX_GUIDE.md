@@ -17,11 +17,11 @@ npm ls wagmi viem @coinbase/onchainkit
 
 ---
 
-## ✅ Solution: Lock Exact Versions
+## ✅ Solution: Lock to Working Versions
 
 ### Step 1: Update `package.json`
 
-**A) Remove caret `^` prefix** dari dependencies biar ga auto-upgrade:
+**A) Lock to Frogger's ACTUAL installed versions** (not package.json versions):
 
 ```diff
   "dependencies": {
@@ -38,9 +38,14 @@ npm ls wagmi viem @coinbase/onchainkit
 +    "react": "18.3.1",
 +    "react-dom": "18.3.1",
 +    "viem": "2.21.0",
-+    "wagmi": "2.13.0"
++    "wagmi": "2.19.5"
   },
 ```
+
+**CRITICAL:** `wagmi` must be `2.19.5` (NOT 2.13.0) because:
+- `baseAccount` connector was added in wagmi 2.19+
+- Frogger's actual installed version is `2.19.5` (despite package.json saying `^2.13.0`)
+- wagmi 2.13.0 throws: `"baseAccount" is not exported by "wagmi/connectors"`
 
 **B) Add package override** untuk latest Base Account SDK (recommended by Base docs):
 
