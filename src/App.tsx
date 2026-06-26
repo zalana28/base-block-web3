@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
+import { useAccount } from 'wagmi';
 import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
@@ -20,6 +21,7 @@ export default function App() {
   const [gameMode, setGameMode] = useState<0 | 1>(0);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
 
+  const { address } = useAccount();
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const [manualSubmitted, setManualSubmitted] = useState(false);
 
@@ -58,6 +60,7 @@ export default function App() {
     gridRef.current = gameState.grid;
   }, [gameState.grid]);
 
+  // Auto-submit score on game over
   useEffect(() => {
     if (gameState.phase === "over") {
       setPhase("over");

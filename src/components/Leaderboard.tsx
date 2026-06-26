@@ -1,35 +1,10 @@
-import type { Abi } from 'viem';
 import { useReadContract } from 'wagmi';
 import { base } from '../config/chain.js';
-import { LEADERBOARD_ADDRESS } from '../config/wagmi.js';
-import { useLeaderboard } from '../hooks/useLeaderboard.js';
-
-const LEADERBOARD_ABI: Abi = [
-  {
-    inputs: [],
-    name: 'getTopScores',
-    outputs: [
-      {
-        components: [
-          { name: 'player', type: 'address' },
-          { name: 'name', type: 'string' },
-          { name: 'score', type: 'uint256' },
-          { name: 'level', type: 'uint256' },
-          { name: 'timestamp', type: 'uint256' },
-        ],
-        internalType: 'struct ScoreEntry[]',
-        name: '',
-        type: 'tuple[]',
-      },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-];
+import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
 
 type OnChainEntry = {
   player: string;
-  name: string;
+  mode: number;
   score: bigint;
   level: number;
   timestamp: bigint;
@@ -51,35 +26,29 @@ function escapeHtml(str: string): string {
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
   const { data: topScores } = useReadContract({
-    address: LEADERBOARD_ADDRESS,
-    abi: LEADERBOARD_ABI,
+    address: GAME_CONTRACT_ADDRESS,
+    abi: GAME_CONTRACT_ABI,
     functionName: 'getTopScores',
+    args: [10],
     chainId: base.id,
     query: { staleTime: 60_000 },
   }) as { data: OnChainEntry[] | undefined };
-
-  const localHook = useLeaderboard();
 
   const entries: Entry[] = (() => {
     if (topScores && Array.isArray(topScores)) {
       const valid = topScores.filter(
         (e) => e.player !== '0x0000000000000000000000000000000000000000' && e.score > 0n,
       );
-      return valid
-        .map((e) => ({
-          name: e.name || e.player.slice(0, 8) + '...',
-          score: Number(e.score),
-          level: e.level,
-        }))
-        .sort((a, b) => {
-          if (b.level !== a.level) return b.level - a.level;
-          return b.score - a.score;
-        });
+      return valid.map((e) => ({
+        name: e.player.slice(0, 6) + '...' + e.player.slice(-4),
+        score: Number(e.score),
+        level: Number(e.level),
+      }));
     }
-    return localHook.entries;
+    return [];
   })();
 
-  const source = topScores ? 'Onchain + Local' : 'Local scores';
+  const source = 'Onchain';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
