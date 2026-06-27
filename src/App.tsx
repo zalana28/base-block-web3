@@ -5,7 +5,6 @@ import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
-import NextTray from "./components/NextTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
@@ -442,7 +441,6 @@ export default function App() {
           onSelectPiece={handleSelectPiece}
         />
 
-        <NextTray pieces={gameState.nextPieces} />
       </div>
     </>
   );
