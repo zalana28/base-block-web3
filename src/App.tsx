@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { CSSProperties } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { useAccount } from 'wagmi';
@@ -15,24 +14,6 @@ import Leaderboard from "./components/Leaderboard.js";
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
-
-const submitContainerStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 4,
-  margin: '8px 0',
-};
-
-const submitButtonStyle: CSSProperties = {
-  fontSize: 12,
-  padding: '8px 20px',
-};
-
-const errorTextStyle: CSSProperties = {
-  fontSize: 10,
-  color: 'var(--danger)',
-};
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
@@ -372,29 +353,26 @@ export default function App() {
         />
 
         {gameState.mode === 0 && (
-          <div style={submitContainerStyle}>
+          <div className="submit-score-section">
             <button
-              className="primary"
+              className="primary submit-score-btn"
               onClick={handleManualSubmit}
               disabled={
                 txStatus === 'pending' ||
                 txStatus === 'confirming' ||
                 gameState.score === 0
               }
-              style={submitButtonStyle}
             >
               {gameState.score === 0
                 ? '🚫 SCORE 0 — MAIN DULU'
                 : txStatus === 'pending' || txStatus === 'confirming'
-                ? '⏳ SUBMITTING...'
-                : txStatus === 'success' || manualSubmitted
-                ? '✅ SCORE SUBMITTED'
-                : '📤 SUBMIT SCORE'}
+                  ? '⏳ SUBMITTING...'
+                  : txStatus === 'success' || manualSubmitted
+                    ? '✅ SCORE SUBMITTED'
+                    : '📤 SUBMIT SCORE'}
             </button>
             {txStatus === 'error' && txError && (
-              <span style={errorTextStyle}>
-                {txError.message}
-              </span>
+              <span className="submit-score-error">{txError.message}</span>
             )}
           </div>
         )}

@@ -7,33 +7,16 @@ interface Props {
 }
 
 export default function NextTray({ pieces, size = 18 }: Props) {
+  if (!pieces || pieces.length === 0) return null;
   const visible = pieces.filter((p): p is BlockPiece => p !== null);
   if (visible.length === 0) return null;
 
   return (
     <div className="next-tray" aria-label="Next pieces preview">
-      <span
-        style={{
-          fontSize: 9,
-          color: 'var(--text-dim)',
-          letterSpacing: 1,
-          marginBottom: 4,
-          display: 'block',
-          textAlign: 'center',
-        }}
-      >
-        NEXT
-      </span>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: 12,
-          opacity: 0.55,
-        }}
-      >
+      <span className="next-tray-label">NEXT</span>
+      <div className="next-tray-pieces">
         {visible.map((piece) => (
-          <div key={piece.id} style={{ pointerEvents: 'none' }}>
+          <div key={piece.id} className="next-tray-piece">
             <BlockShape piece={piece} size={size} />
           </div>
         ))}

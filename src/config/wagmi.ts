@@ -1,4 +1,4 @@
-import { http, createConfig, createStorage } from "wagmi";
+import { http, createConfig, createStorage, cookieStorage } from "wagmi";
 import { Attribution } from "ox/erc8021";
 import { coinbaseWallet, injected } from "wagmi/connectors";
 import { base } from "./chain.js";
@@ -15,13 +15,13 @@ export const wagmiConfig = createConfig({
       appName: "Base Block",
       preference: "smartWalletOnly",
     }),
-    injected(),
+    injected({ shimDisconnect: true }),
   ],
   transports: {
     [base.id]: http(),
   },
   ssr: false,
-  storage: createStorage({ storage: localStorage }),
+  storage: createStorage({ storage: cookieStorage }),
 });
 
 declare module "wagmi" {

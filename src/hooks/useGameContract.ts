@@ -43,30 +43,42 @@ export function useGameContract() {
 
   const startGame = useCallback(
     (mode: GameMode) => {
+      console.log('[Base Block] startGame called:', { mode, contractAddress: GAME_CONTRACT_ADDRESS });
       reset();
-      writeContract({
-        address: GAME_CONTRACT_ADDRESS,
-        abi: GAME_CONTRACT_ABI,
-        functionName: 'startGame',
-        args: [mode],
-        chainId: base.id,
-        dataSuffix: DATA_SUFFIX,
-      });
+      try {
+        writeContract({
+          address: GAME_CONTRACT_ADDRESS,
+          abi: GAME_CONTRACT_ABI,
+          functionName: 'startGame',
+          args: [mode],
+          chainId: base.id,
+          dataSuffix: DATA_SUFFIX,
+        });
+        console.log('[Base Block] writeContract initiated for startGame');
+      } catch (err) {
+        console.error('[Base Block] startGame error:', err);
+      }
     },
     [writeContract, reset]
   );
 
   const submitScore = useCallback(
     (mode: GameMode, score: number, level: number = 0) => {
+      console.log('[Base Block] submitScore called:', { mode, score, level, contractAddress: GAME_CONTRACT_ADDRESS });
       reset();
-      writeContract({
-        address: GAME_CONTRACT_ADDRESS,
-        abi: GAME_CONTRACT_ABI,
-        functionName: 'submitScore',
-        args: [mode, BigInt(score), BigInt(level)],
-        chainId: base.id,
-        dataSuffix: DATA_SUFFIX,
-      });
+      try {
+        writeContract({
+          address: GAME_CONTRACT_ADDRESS,
+          abi: GAME_CONTRACT_ABI,
+          functionName: 'submitScore',
+          args: [mode, BigInt(score), BigInt(level)],
+          chainId: base.id,
+          dataSuffix: DATA_SUFFIX,
+        });
+        console.log('[Base Block] writeContract initiated for submitScore');
+      } catch (err) {
+        console.error('[Base Block] submitScore error:', err);
+      }
     },
     [writeContract, reset]
   );
