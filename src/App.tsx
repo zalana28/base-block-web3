@@ -62,6 +62,8 @@ export default function App() {
   }, [gameState.grid]);
 
   // Auto-submit score on game over
+  // FIX: skip submit kalau score === 0 — kontrak revert dengan "Score must be > 0"
+  // yang bikin wallet stuck di "Previewing your transaction..."
   useEffect(() => {
     if (gameState.phase === "over") {
       setPhase("over");
@@ -70,7 +72,7 @@ export default function App() {
       } else {
         setGameOverReason('no-moves');
       }
-      if (!scoreSubmitted) {
+      if (!scoreSubmitted && gameState.score > 0) {
         submitScore(gameMode, gameState.score, gameState.level);
         setScoreSubmitted(true);
       }
@@ -171,7 +173,7 @@ export default function App() {
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
-      
+
       // FIX: Direct update tanpa RAF untuk responsiveness maksimal
       const piece = dragPieceRef.current;
       const grab = grabOffsetRef.current;
@@ -199,18 +201,17 @@ export default function App() {
     [],
   );
 
-
   const handleDragEnd = useCallback(
     (clientX: number, clientY: number) => {
       // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
       const wasDragging = isDraggingRef.current;
       const piece = dragPieceRef.current;
       const grab = grabOffsetRef.current;
-      
+
       isDraggingRef.current = false;
       dragPieceRef.current = null;
       grabOffsetRef.current = { row: 0, col: 0 };
-      
+
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -230,7 +231,7 @@ export default function App() {
             return;
           }
         }
-        
+
         const cellSize = boardCellSizeRef.current;
         const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
@@ -245,14 +246,15 @@ export default function App() {
     [actions],
   );
 
-
   const handleStartGame = useCallback((mode: 0 | 1) => {
     setGameMode(mode);
     actions.startGame(mode);
     setPhase("playing");
   }, [actions]);
 
+  // FIX: guard manual submit terhadap score=0 supaya gak trigger kontrak revert
   const handleManualSubmit = useCallback(() => {
+    if (gameState.score === 0) return;
     txReset();
     submitScore(gameState.mode, gameState.score, gameState.level);
     setManualSubmitted(true);
@@ -355,13 +357,19 @@ export default function App() {
             <button
               className="primary submit-score-btn"
               onClick={handleManualSubmit}
-              disabled={txStatus === 'pending' || txStatus === 'confirming'}
+              disabled={
+                txStatus === 'pending' ||
+                txStatus === 'confirming' ||
+                gameState.score === 0
+              }
             >
-              {txStatus === 'pending' || txStatus === 'confirming'
-                ? '⏳ SUBMITTING...'
-                : txStatus === 'success' || manualSubmitted
-                  ? '✅ SCORE SUBMITTED'
-                  : '📤 SUBMIT SCORE'}
+              {gameState.score === 0
+                ? '🚫 SCORE 0 — MAIN DULU'
+                : txStatus === 'pending' || txStatus === 'confirming'
+                  ? '⏳ SUBMITTING...'
+                  : txStatus === 'success' || manualSubmitted
+                    ? '✅ SCORE SUBMITTED'
+                    : '📤 SUBMIT SCORE'}
             </button>
             {txStatus === 'error' && txError && (
               <span className="submit-score-error">{txError.message}</span>

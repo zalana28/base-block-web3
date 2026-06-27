@@ -1,8 +1,7 @@
 import { http, createConfig, createStorage, cookieStorage } from "wagmi";
 import { Attribution } from "ox/erc8021";
-import { base } from "./chain.js";
 import { coinbaseWallet, injected } from "wagmi/connectors";
-
+import { base } from "./chain.js";
 import { GAME_CONTRACT_ADDRESS } from "./contract.js";
 
 export const LEADERBOARD_ADDRESS = GAME_CONTRACT_ADDRESS;
@@ -14,7 +13,7 @@ export const wagmiConfig = createConfig({
   connectors: [
     coinbaseWallet({
       appName: "Base Block",
-      preference: "all", // Smart wallet + EOA both supported
+      preference: "smartWalletOnly",
     }),
     injected({ shimDisconnect: true }),
   ],
