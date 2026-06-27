@@ -116,7 +116,7 @@ export default function BlockShape({
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable || !isPointerDown.current) return;
     isPointerDown.current = false;
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore release failure */ }
 
     if (hasDragged.current) {
       onDragEnd?.(e.clientX, e.clientY);
