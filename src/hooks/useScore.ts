@@ -21,7 +21,7 @@ export function useScore(): {
   useEffect(() => {
     if (score > bestScore) {
       setBestScore(score);
-      try { localStorage.setItem(STORAGE_KEY, String(score)); } catch {}
+      try { localStorage.setItem(STORAGE_KEY, String(score)); } catch { /* ignore storage failure */ }
     }
   }, [score, bestScore]);
 

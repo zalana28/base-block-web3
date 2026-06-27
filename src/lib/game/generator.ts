@@ -62,7 +62,7 @@ function getDifficultyWeight(def: ShapeDef, level: number): number {
   const hardBonus = HARD_SHAPES.has(def.name) ? 0.3 : 0;
   const levelFactor = Math.min((level - 1) * 0.15, 1.5);
 
-  let adjusted = base * (1 + easyBonus * levelFactor + hardBonus * levelFactor);
+  const adjusted = base * (1 + easyBonus * levelFactor + hardBonus * levelFactor);
   return Math.max(adjusted, 0.5);
 }
 

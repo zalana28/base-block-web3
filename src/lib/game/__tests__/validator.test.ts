@@ -12,7 +12,7 @@ describe('validator', () => {
   });
 
   it('canPlaceShapeAnywhere false when grid full', () => {
-    let grid = createGrid();
+    const grid = createGrid();
     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) grid[r][c] = 'red';
     const p = generatePiece();
     expect(canPlaceShapeAnywhere(grid, p.shape)).toBe(false);
@@ -25,7 +25,7 @@ describe('validator', () => {
   });
 
   it('canPlaceAnyOfPieces false when none fit', () => {
-    let grid = createGrid();
+    const grid = createGrid();
     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) grid[r][c] = 'red';
     const pieces = generateThreePieces();
     expect(canPlaceAnyOfPieces(grid, pieces)).toBe(false);
