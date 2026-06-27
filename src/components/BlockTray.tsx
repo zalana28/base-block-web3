@@ -20,29 +20,28 @@ export default function BlockTray({
   return (
     <div className="block-tray" aria-label="Block tray">
       {pieces.map((piece, i) => {
-        const isDragged = piece ? draggedPieceId === piece.id : false;
-        const isSelected = piece ? selectedPieceId === piece.id : false;
+        if (!piece) return <div key={`empty-${i}`} className="tray-empty-slot" />;
+        const isDragged = draggedPieceId === piece.id;
+        const isSelected = selectedPieceId === piece.id;
         return (
           <div
-            key={`slot-${i}`}
-            className={`tray-slot${piece ? ' filled' : ''}${isDragged ? ' dragging' : ''}${isSelected ? ' selected' : ''}`}
-            aria-label={piece ? `Piece ${i + 1}: ${piece.name}` : `Empty slot ${i + 1}`}
+            key={piece.id}
+            className={`tray-piece${isDragged ? ' dragging' : ''}${isSelected ? ' selected' : ''}`}
+            aria-label={`Piece ${i + 1}: ${piece.name}`}
           >
-            {piece ? (
-              <BlockShape
-                piece={piece}
-                size={28}
-                boardCellSize={isDragged ? cellSize : undefined}
-                isDraggable
-                isDragging={isDragged}
-                isSelected={isSelected}
-                dragPos={isDragged ? dragPos : null}
-                onDragStart={onDragStart}
-                onDragMove={onDragMove}
-                onDragEnd={onDragEnd}
-                onSelectPiece={onSelectPiece}
-              />
-            ) : null}
+            <BlockShape
+              piece={piece}
+              size={28}
+              boardCellSize={isDragged ? cellSize : undefined}
+              isDraggable
+              isDragging={isDragged}
+              isSelected={isSelected}
+              dragPos={isDragged ? dragPos : null}
+              onDragStart={onDragStart}
+              onDragMove={onDragMove}
+              onDragEnd={onDragEnd}
+              onSelectPiece={onSelectPiece}
+            />
           </div>
         );
       })}

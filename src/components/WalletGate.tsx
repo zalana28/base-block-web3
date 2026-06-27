@@ -76,11 +76,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
                 disabled={status === 'pending' || status === 'confirming'}
                 aria-label="Start Classic mode"
               >
-                <div className="mode-card-icon">🧩</div>
                 <div className="mode-card-title">CLASSIC</div>
-                <div className="mode-card-desc">
-                  Endless stacking. Clear lines. No time limit.
-                </div>
                 {selectedMode === 0 && (status === 'pending' || status === 'confirming') && (
                   <div className="tx-status">
                     <span className="dot pending" /> Starting...
@@ -94,11 +90,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
                 disabled={status === 'pending' || status === 'confirming'}
                 aria-label="Start Arcade mode"
               >
-                <div className="mode-card-icon">⚡</div>
                 <div className="mode-card-title">ARCADE</div>
-                <div className="mode-card-desc">
-                  Race the clock. Hit targets. Climb ranks.
-                </div>
                 {selectedMode === 1 && (status === 'pending' || status === 'confirming') && (
                   <div className="tx-status">
                     <span className="dot pending" /> Starting...
