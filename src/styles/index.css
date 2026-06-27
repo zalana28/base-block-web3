@@ -456,11 +456,13 @@ html, body {
 
 /* Icon button (settings) */
 .icon-btn {
-  width: 2.25rem;
-  height: 2.25rem;
-  min-height: 0;
-  max-height: none;
-  padding: 0;
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
   display: flex;
   align-items: center;
   justify-content: center;
