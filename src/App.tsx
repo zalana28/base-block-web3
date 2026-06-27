@@ -351,12 +351,11 @@ export default function App() {
         />
 
         {gameState.mode === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+          <div className="submit-score-section">
             <button
-              className="primary"
+              className="primary submit-score-btn"
               onClick={handleManualSubmit}
               disabled={txStatus === 'pending' || txStatus === 'confirming'}
-              style={{ fontSize: 12, padding: '8px 20px' }}
             >
               {txStatus === 'pending' || txStatus === 'confirming'
                 ? '⏳ SUBMITTING...'
@@ -365,9 +364,7 @@ export default function App() {
                   : '📤 SUBMIT SCORE'}
             </button>
             {txStatus === 'error' && txError && (
-              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
-                {txError.message}
-              </span>
+              <span className="submit-score-error">{txError.message}</span>
             )}
           </div>
         )}
