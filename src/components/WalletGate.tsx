@@ -67,47 +67,56 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
               {address.slice(0, 6)}...{address.slice(-4)}
             </p>
 
-            <div className="feature-grid single-column">
+            <div className="mode-selector-label">SELECT MODE</div>
+
+            <div className="mode-grid">
               <button
-                className="feature-card"
+                className="mode-card classic"
                 onClick={() => handleSelectMode(0)}
                 disabled={status === 'pending' || status === 'confirming'}
                 aria-label="Start Classic mode"
               >
-                <div className="feature-icon">🧩</div>
-                <div className="feature-title">CLASSIC MODE</div>
-                <div className="feature-desc">
-                  Endless block stacking. Strategize every piece to keep the board clear.
+                <div className="mode-card-icon">🧩</div>
+                <div className="mode-card-title">CLASSIC</div>
+                <div className="mode-card-desc">
+                  Endless stacking. Clear lines. No time limit.
                 </div>
                 {selectedMode === 0 && (status === 'pending' || status === 'confirming') && (
-                  <div className="tx-status" style={{ marginTop: 8 }}>
-                    <span className="dot pending" /> Starting onchain session…
+                  <div className="tx-status">
+                    <span className="dot pending" /> Starting...
                   </div>
                 )}
               </button>
 
               <button
-                className="feature-card"
+                className="mode-card arcade"
                 onClick={() => handleSelectMode(1)}
                 disabled={status === 'pending' || status === 'confirming'}
                 aria-label="Start Arcade mode"
               >
-                <div className="feature-icon">⚡</div>
-                <div className="feature-title">ARCADE MODE</div>
-                <div className="feature-desc">
-                  Race the clock, hit level targets, and climb the leaderboard.
+                <div className="mode-card-icon">⚡</div>
+                <div className="mode-card-title">ARCADE</div>
+                <div className="mode-card-desc">
+                  Race the clock. Hit targets. Climb ranks.
                 </div>
                 {selectedMode === 1 && (status === 'pending' || status === 'confirming') && (
-                  <div className="tx-status" style={{ marginTop: 8 }}>
-                    <span className="dot pending" /> Starting onchain session…
+                  <div className="tx-status">
+                    <span className="dot pending" /> Starting...
                   </div>
                 )}
               </button>
             </div>
 
-            <button className="secondary" onClick={() => setShowModal(true)}>
-              DISCONNECT
-            </button>
+            <div className="landing-footer-actions">
+              {onViewLeaderboard && (
+                <button className="secondary leaderboard-btn" onClick={onViewLeaderboard}>
+                  🏆 LEADERBOARD
+                </button>
+              )}
+              <button className="secondary disconnect-btn" onClick={() => setShowModal(true)}>
+                DISCONNECT
+              </button>
+            </div>
           </div>
         ) : (
           <div className="landing-actions">
@@ -147,7 +156,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
 
             {isPending && (
               <div className="tx-status">
-                <span className="dot pending" /> Connecting…
+                <span className="dot pending" /> Connecting...
               </div>
             )}
 

@@ -21,6 +21,8 @@ export default function App() {
   const [gameMode, setGameMode] = useState<0 | 1>(0);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const [manualSubmitted, setManualSubmitted] = useState(false);
@@ -102,6 +104,7 @@ export default function App() {
 
   const handleBoardTap = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isPaused) return;
       if (selectedPieceId == null || !boardRef.current) return;
       const piece = gameState.pieces.find((p): p is BlockPiece => p !== null && p.id === selectedPieceId);
       if (!piece) return;
@@ -129,11 +132,12 @@ export default function App() {
         setSelectedPieceId(null);
       }
     },
-    [selectedPieceId, gameState.pieces, actions],
+    [selectedPieceId, gameState.pieces, actions, isPaused],
   );
 
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
+      if (isPaused) return;
       // Clear any tap selection when user starts dragging
       setSelectedPieceId(null);
 
@@ -164,11 +168,12 @@ export default function App() {
         ghostValid: false,
       });
     },
-    [],
+    [isPaused],
   );
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
+      if (isPaused) return;
       if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
       
       // FIX: Direct update tanpa RAF untuk responsiveness maksimal
@@ -195,12 +200,13 @@ export default function App() {
         ghostValid: isValid,
       }));
     },
-    [],
+    [isPaused],
   );
 
 
   const handleDragEnd = useCallback(
     (clientX: number, clientY: number) => {
+      if (isPaused) return;
       // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
       const wasDragging = isDraggingRef.current;
       const piece = dragPieceRef.current;
@@ -241,7 +247,7 @@ export default function App() {
         }
       }
     },
-    [actions],
+    [actions, isPaused],
   );
 
 
@@ -249,6 +255,8 @@ export default function App() {
     setGameMode(mode);
     actions.startGame(mode);
     setPhase("playing");
+    setIsPaused(false);
+    setShowSettings(false);
   }, [actions]);
 
   const handleManualSubmit = useCallback(() => {
@@ -263,6 +271,23 @@ export default function App() {
     setManualSubmitted(false);
     txReset();
     setGameOverReason('no-moves');
+    setPhase("wallet");
+    setIsPaused(false);
+    setShowSettings(false);
+  }, [actions, txReset]);
+
+  const handlePause = useCallback(() => {
+    setIsPaused((p) => !p);
+    setShowSettings(false);
+  }, []);
+
+  const handleExitGame = useCallback(() => {
+    setIsPaused(false);
+    setShowSettings(false);
+    setScoreSubmitted(false);
+    setManualSubmitted(false);
+    txReset();
+    actions.resetGame();
     setPhase("wallet");
   }, [actions, txReset]);
 
@@ -323,9 +348,43 @@ export default function App() {
       {ambientBackground}
       <div className="game-screen">
         <div className="game-header">
-          <div className="game-header-title">BASE BLOCK</div>
-          <div className="game-header-subtitle">ON BASE NETWORK</div>
+          <div className="game-header-row">
+            <div className="game-header-text">
+              <div className="game-header-title">BASE BLOCK</div>
+              <div className="game-header-subtitle">ON BASE NETWORK</div>
+            </div>
+            <div className="game-header-actions">
+              <button
+                className="icon-btn settings-btn"
+                onClick={() => setShowSettings((s) => !s)}
+                aria-label="Settings"
+              >
+                ⚙️
+              </button>
+            </div>
+          </div>
+
+          {showSettings && (
+            <div className="settings-dropdown">
+              <button className="settings-item" onClick={handlePause}>
+                {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
+              </button>
+              <button className="settings-item exit" onClick={handleExitGame}>
+                🚪 EXIT GAME
+              </button>
+            </div>
+          )}
         </div>
+
+        {isPaused && (
+          <div className="pause-overlay" onClick={handlePause}>
+            <div className="pause-content">
+              <div className="pause-icon">⏸️</div>
+              <div className="pause-text">PAUSED</div>
+              <div className="pause-hint">Tap to resume</div>
+            </div>
+          </div>
+        )}
 
         <ScoreBoard
           score={gameState.score}
