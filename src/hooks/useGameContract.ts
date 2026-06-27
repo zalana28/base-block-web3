@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { useCallback, useMemo } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
@@ -36,9 +37,11 @@ export function useGameContract() {
   const error = useMemo(() => {
     const err = writeError || receiptError;
     if (!err) return null;
-    return {
-      message: (err as any).shortMessage || (err as any).message || 'Transaction failed',
-    };
+    const message =
+      'shortMessage' in err && typeof err.shortMessage === 'string'
+        ? err.shortMessage
+        : err.message || 'Transaction failed';
+    return { message };
   }, [writeError, receiptError]);
 
   const startGame = useCallback(

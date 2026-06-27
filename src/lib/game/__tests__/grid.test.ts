@@ -40,7 +40,7 @@ describe('grid', () => {
   });
 
   it('clearLines removes full rows', () => {
-    let grid = createGrid();
+    const grid = createGrid();
     for (let c = 0; c < 8; c++) grid[3][c] = 'red';
     const { grid: next, result } = clearLines(grid);
     expect(result.clearedRows).toContain(3);
@@ -49,7 +49,7 @@ describe('grid', () => {
   });
 
   it('clearLines removes full cols', () => {
-    let grid = createGrid();
+    const grid = createGrid();
     for (let r = 0; r < 8; r++) grid[r][5] = 'green';
     const { grid: next, result } = clearLines(grid);
     expect(result.clearedCols).toContain(5);
@@ -57,7 +57,7 @@ describe('grid', () => {
   });
 
   it('combo detected for multi-line clear', () => {
-    let grid = createGrid();
+    const grid = createGrid();
     for (let c = 0; c < 8; c++) { grid[2][c] = 'red'; grid[3][c] = 'blue'; }
     const { result } = clearLines(grid);
     expect(result.isCombo).toBe(true);
