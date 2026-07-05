@@ -9,9 +9,12 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
   return (
     <div className="overlay" role="dialog" aria-modal="true">
       <div className="panel">
-        <div className="landing-badge" style={{ margin: '0 auto 0.75rem' }}>
-          <span className="dot" />
-          LEADERBOARD
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#00e5ff', fontSize: '1.5rem', cursor: 'pointer', padding: '0.25rem', lineHeight: 1 }}>←</button>
+          <div className="landing-badge" style={{ margin: 0 }}>
+            <span className="dot" />
+            LEADERBOARD
+          </div>
         </div>
         <h1 style={{ marginBottom: '0.25rem' }}>TOP STACKERS</h1>
         <h2>🏆 ON BASE NETWORK</h2>

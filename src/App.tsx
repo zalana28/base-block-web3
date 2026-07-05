@@ -3,7 +3,7 @@ import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { canPlaceAnyOfPieces } from "./lib/game/validator.js";
 import { useGameState } from "./hooks/useGameState.js";
-import { sfxPlace, sfxClear, sfxCombo, sfxGameOver, sfxSelect } from "./lib/audio.js";
+import { sfxPlace, sfxClear, sfxCombo, sfxGameOver, sfxSelect, setMuted } from "./lib/audio.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
@@ -81,6 +81,7 @@ export default function App() {
 
   // Settings menu
   const [showSettings, setShowSettings] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   // Close settings on outside click
@@ -489,6 +490,13 @@ export default function App() {
               </button>
               {showSettings && (
                 <div className="settings-menu" role="menu">
+                  <button className="settings-item" onClick={() => {
+                    const next = !soundMuted;
+                    setSoundMuted(next);
+                    setMuted(next);
+                  }}>
+                    {soundMuted ? '🔇 Sound: OFF' : '🔊 Sound: ON'}
+                  </button>
                   <button className="settings-item" onClick={() => { setShowSettings(false); setShowLeaderboard(true); }}>
                     🏆 Leaderboard
                   </button>

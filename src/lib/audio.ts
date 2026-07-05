@@ -1,5 +1,9 @@
 // Tiny synthesized sound effects via Web Audio API — no external files needed
 let ctx: AudioContext | null = null;
+let muted = false;
+
+export function setMuted(m: boolean) { muted = m; }
+export function isMuted(): boolean { return muted; }
 
 function getCtx(): AudioContext {
   if (!ctx) ctx = new AudioContext();
@@ -8,6 +12,7 @@ function getCtx(): AudioContext {
 }
 
 function play(freq: number, dur: number, type: OscillatorType = 'square', vol = 0.12, freqEnd?: number) {
+  if (muted) return;
   try {
     const c = getCtx();
     const osc = c.createOscillator();
@@ -25,9 +30,7 @@ function play(freq: number, dur: number, type: OscillatorType = 'square', vol = 
 }
 
 /** Short click when placing a block */
-export function sfxPlace() {
-  play(600, 0.08, 'square', 0.1, 300);
-}
+export function sfxPlace() { play(600, 0.08, 'square', 0.1, 300); }
 
 /** Rising sparkle when a line clears */
 export function sfxClear() {
@@ -49,6 +52,4 @@ export function sfxGameOver() {
 }
 
 /** Short select click */
-export function sfxSelect() {
-  play(800, 0.04, 'square', 0.06, 600);
-}
+export function sfxSelect() { play(800, 0.04, 'square', 0.06, 600); }
