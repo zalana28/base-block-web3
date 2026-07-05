@@ -3,14 +3,29 @@ import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { canPlaceAnyOfPieces } from "./lib/game/validator.js";
 import { useGameState } from "./hooks/useGameState.js";
+import { sfxPlace, sfxClear, sfxCombo, sfxGameOver, sfxSelect } from "./lib/audio.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
-// NextTray import removed — hidden per user request
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
+
+// Font loading hook
+function useFontReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => setReady(true));
+    } else {
+      // Fallback: assume ready after 2s
+      const t = setTimeout(() => setReady(true), 2000);
+      return () => clearTimeout(t);
+    }
+  }, []);
+  return ready;
+}
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
@@ -23,6 +38,7 @@ interface DragState {
 }
 
 export default function App() {
+  const fontReady = useFontReady();
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
@@ -97,14 +113,17 @@ export default function App() {
   const prevScoreRef = useRef(gameState.score);
   const prevPlacedLenRef = useRef(0);
   useEffect(() => {
-    // Show popup on every new block placement
     const newPlacement = gameState.lastPlacedCells.length > 0 &&
       gameState.lastPlacedCells.length !== prevPlacedLenRef.current;
     const diff = gameState.score - prevScoreRef.current;
 
     if (gameState.phase === 'playing' && (newPlacement || diff > 0)) {
-      const points = diff > 0 ? diff : 1; // Show +1 minimum on placement
+      const points = diff > 0 ? diff : 1;
       setScorePopup({ points, key: Date.now() });
+      // Sound: line clear if clearing, otherwise just placement
+      if (gameState.clearingRows.length > 0 || gameState.clearingCols.length > 0) {
+        sfxClear();
+      }
       const t = setTimeout(() => setScorePopup(null), 900);
       prevPlacedLenRef.current = gameState.lastPlacedCells.length;
       prevScoreRef.current = gameState.score;
@@ -137,6 +156,7 @@ export default function App() {
       // Screen shake for big combos
       if (gameState.combo >= 3) {
         setShaking(true);
+        sfxCombo(gameState.combo);
         // Stronger haptic for combos
         try { navigator.vibrate?.([20, 30, 20]); } catch { /* ignore */ }
         const t = setTimeout(() => setShaking(false), 300);
@@ -176,6 +196,7 @@ export default function App() {
   useEffect(() => {
     if (gameState.phase === "over") {
       setPhase("over");
+      sfxGameOver();
       if (gameState.timeLeft <= 0 && gameState.mode === 1) {
         setGameOverReason('time-up');
       } else {
@@ -210,6 +231,7 @@ export default function App() {
 
   const handleSelectPiece = useCallback((pieceId: string | null) => {
     setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
+    sfxSelect();
   }, []);
 
   const handleBoardTap = useCallback(
@@ -238,6 +260,7 @@ export default function App() {
       if (canPlace(gridRef.current, piece.shape, pos)) {
         actions.placePiece(piece, pos);
         setSelectedPieceId(null);
+        sfxPlace();
         // Haptic feedback on mobile
         try { navigator.vibrate?.(15); } catch { /* ignore */ }
       }
@@ -345,6 +368,7 @@ export default function App() {
 
         if (canPlace(gridRef.current, piece.shape, pos)) {
           actions.placePiece(piece, pos);
+          sfxPlace();
           // Haptic feedback on mobile
           try { navigator.vibrate?.(15); } catch { /* ignore */ }
         }
@@ -388,6 +412,15 @@ export default function App() {
       </div>
     </>
   );
+
+  if (!fontReady) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+        <div className="loading-text">LOADING...</div>
+      </div>
+    );
+  }
 
   if (showLeaderboard) {
     return (

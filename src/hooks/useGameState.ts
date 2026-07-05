@@ -11,6 +11,7 @@ interface Actions {
   placePiece: (piece: BlockPiece, pos: { row: number; col: number }) => boolean;
   isGameOver: () => boolean;
   resetGame: () => void;
+  endGame: () => void;
 }
 
 const LEVEL_THRESHOLD = 500;
