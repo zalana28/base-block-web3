@@ -14,6 +14,13 @@ import Leaderboard from "./components/Leaderboard.js";
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
 
+interface DragState {
+  piece: BlockPiece | null;
+  pos: { x: number; y: number } | null;
+  ghost: Position | null;
+  ghostValid: boolean;
+}
+
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -25,13 +32,6 @@ export default function App() {
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const [manualSubmitted, setManualSubmitted] = useState(false);
 
-  // Drag state — batched dalam satu object untuk hindari re-render cascade
-  interface DragState {
-    piece: BlockPiece | null;
-    pos: { x: number; y: number } | null;
-    ghost: Position | null;
-    ghostValid: boolean;
-  }
   const [dragState, setDragState] = useState<DragState>({
     piece: null,
     pos: null,

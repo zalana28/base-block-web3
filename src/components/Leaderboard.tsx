@@ -2,14 +2,14 @@ import { useReadContract } from 'wagmi';
 import { base } from '../config/chain.js';
 import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
 
-type OnChainEntry = {
+interface OnChainEntry {
   player: string;
   name: string;
   mode: number;
   score: bigint;
   level: number;
   timestamp: bigint;
-};
+}
 
 interface Entry {
   name: string;
@@ -17,13 +17,18 @@ interface Entry {
   level: number;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function isValidEntry(e: unknown): e is OnChainEntry {
+  if (!e || typeof e !== 'object') return false;
+  const obj = e as Record<string, unknown>;
+  return (
+    typeof obj.player === 'string' &&
+    typeof obj.mode === 'number' &&
+    (typeof obj.score === 'bigint' || typeof obj.score === 'number') &&
+    typeof obj.level === 'number'
+  );
 }
+
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
   const { data: topScores } = useReadContract({
@@ -36,25 +41,20 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
   }) as { data: OnChainEntry[] | undefined };
 
   const entries: Entry[] = (() => {
-    if (topScores && Array.isArray(topScores)) {
-      const valid = topScores.filter(
-        (e) => e.player !== '0x0000000000000000000000000000000000000000' && e.score > 0n,
-      );
-      return valid
-        .map((e) => ({
-          name: e.name || e.player.slice(0, 8) + '...',
-          score: Number(e.score),
-          level: e.level,
-        }))
-        .sort((a, b) => {
-          if (b.level !== a.level) return b.level - a.level;
-          return b.score - a.score;
-        });
-    }
-    return [];
+    if (!topScores || !Array.isArray(topScores)) return [];
+    return topScores
+      .filter(isValidEntry)
+      .filter((e) => e.player !== ZERO_ADDR && e.score > 0n)
+      .map((e) => ({
+        name: e.name || e.player.slice(0, 8) + '...',
+        score: Number(e.score),
+        level: e.level,
+      }))
+      .sort((a, b) => {
+        if (b.level !== a.level) return b.level - a.level;
+        return b.score - a.score;
+      });
   })();
-
-  const source = 'Onchain';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
@@ -64,37 +64,27 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
           LEADERBOARD
         </div>
         <h1 style={{ marginBottom: '0.25rem' }}>TOP STACKERS</h1>
-        <h2>🏆 ON BASE NETWORK 🏆</h2>
+        <h2>🏆 ON BASE NETWORK</h2>
 
-        <ol className="leaderboard-list">
-          {entries.length === 0 ? (
-            <li className="leaderboard-empty">
-              No scores yet — be the first!
-            </li>
-          ) : (
-            entries.slice(0, 10).map((row, i) => (
-              <li key={i} className="leaderboard-item">
-                <span>
-                  <span className="leaderboard-rank">#{i + 1}</span>
-                  <span className="leaderboard-name">{escapeHtml(row.name)}</span>
-                  {row.level != null && (
-                    <span className="leaderboard-level">L{row.level}</span>
-                  )}
-                </span>
-                <span className="leaderboard-score">
-                  {row.score.toLocaleString()}
-                </span>
-              </li>
-            ))
+        <div className="leaderboard-list">
+          {entries.length === 0 && (
+            <p className="leaderboard-empty">No scores yet. Be the first!</p>
           )}
-        </ol>
+          {entries.map((entry, i) => (
+            <div key={`${entry.name}-${i}`} className="leaderboard-row">
+              <span className="leaderboard-rank">#{i + 1}</span>
+              <span className="leaderboard-name">{entry.name}</span>
+              <span className="leaderboard-score">{entry.score.toLocaleString()}</span>
+              {entry.level > 0 && (
+                <span className="leaderboard-level">LV{entry.level}</span>
+              )}
+            </div>
+          ))}
+        </div>
 
-        <p className="leaderboard-source">
-          {source} • {entries.length} entries
-        </p>
-        <button className="secondary" onClick={onClose}>
-          CLOSE
-        </button>
+        <div className="landing-actions" style={{ marginTop: '1rem' }}>
+          <button className="primary" onClick={onClose}>CLOSE</button>
+        </div>
       </div>
     </div>
   );

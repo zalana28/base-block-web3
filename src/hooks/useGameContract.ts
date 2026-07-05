@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { useCallback, useMemo } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
@@ -46,7 +45,6 @@ export function useGameContract() {
 
   const startGame = useCallback(
     (mode: GameMode) => {
-      console.log('[Base Block] startGame called:', { mode, contractAddress: GAME_CONTRACT_ADDRESS });
       reset();
       try {
         writeContract({
@@ -57,17 +55,15 @@ export function useGameContract() {
           chainId: base.id,
           dataSuffix: DATA_SUFFIX,
         });
-        console.log('[Base Block] writeContract initiated for startGame');
-      } catch (err) {
-        console.error('[Base Block] startGame error:', err);
+      } catch {
+        // writeContract throws synchronously for invalid args
       }
     },
-    [writeContract, reset]
+    [reset, writeContract],
   );
 
   const submitScore = useCallback(
-    (mode: GameMode, score: number, level: number = 0) => {
-      console.log('[Base Block] submitScore called:', { mode, score, level, contractAddress: GAME_CONTRACT_ADDRESS });
+    (mode: GameMode, score: number, level: number) => {
       reset();
       try {
         writeContract({
@@ -78,20 +74,12 @@ export function useGameContract() {
           chainId: base.id,
           dataSuffix: DATA_SUFFIX,
         });
-        console.log('[Base Block] writeContract initiated for submitScore');
-      } catch (err) {
-        console.error('[Base Block] submitScore error:', err);
+      } catch {
+        // writeContract throws synchronously for invalid args
       }
     },
-    [writeContract, reset]
+    [reset, writeContract],
   );
 
-  return {
-    startGame,
-    submitScore,
-    status,
-    hash,
-    error,
-    reset,
-  };
+  return { startGame, submitScore, status, error, reset } as const;
 }
