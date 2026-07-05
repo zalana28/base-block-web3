@@ -749,7 +749,23 @@ button .btn-icon {
 }
 
 .cell.clearing {
-  animation: flashClear 0.4s ease;
+  animation: flashClear 0.32s ease;
+}
+
+/* Score pop-up animation */
+.score-popup {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translateX(-50%);
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(0.875rem, 4vw, 1.25rem);
+  color: var(--frog);
+  text-shadow: 0 0 12px var(--frog-glow), 0 0 24px rgba(0, 230, 118, 0.4);
+  pointer-events: none;
+  z-index: 30;
+  animation: scoreFloat 0.9s ease-out forwards;
+  white-space: nowrap;
 }
 
 /* Submit score section */
@@ -1184,8 +1200,14 @@ p {
 
 @keyframes flashClear {
   0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.15); opacity: 0.8; background: #fff; }
-  100% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.2); opacity: 0.9; background: #fff; box-shadow: 0 0 16px rgba(255,255,255,0.8); }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+
+@keyframes scoreFloat {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  40% { opacity: 1; transform: translateX(-50%) translateY(-20px) scale(1.15); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-50px) scale(0.9); }
 }
 
 @keyframes ghostPulse {

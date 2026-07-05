@@ -47,12 +47,27 @@ export default function App() {
   const boardRectRef = useRef<DOMRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // (clearing animation, opsional — bisa di-wire kemudian)
+  // (clearing animation state now lives in useGameState)
   const [clearingRows] = useState<number[]>([]);
   const [clearingCols] = useState<number[]>([]);
 
+  // Score pop-up state
+  const [scorePopup, setScorePopup] = useState<{ points: number; key: number } | null>(null);
+
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
+
+  // Score popup trigger
+  const prevScoreRef = useRef(gameState.score);
+  useEffect(() => {
+    const diff = gameState.score - prevScoreRef.current;
+    if (diff > 0 && gameState.phase === 'playing') {
+      setScorePopup({ points: diff, key: Date.now() });
+      const t = setTimeout(() => setScorePopup(null), 900);
+      return () => clearTimeout(t);
+    }
+    prevScoreRef.current = gameState.score;
+  }, [gameState.score, gameState.phase]);
 
   // Ref untuk grid — hindari stale closure di RAF
   const gridRef = useRef(gameState.grid);
@@ -350,6 +365,12 @@ export default function App() {
           boardRef={boardRef}
           onPointerDown={handleBoardTap}
         />
+
+        {scorePopup && (
+          <div key={scorePopup.key} className="score-popup">
+            +{scorePopup.points.toLocaleString()}
+          </div>
+        )}
 
         {gameState.mode === 0 && (
           <div className="submit-score-section">

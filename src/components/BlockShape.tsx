@@ -29,7 +29,7 @@ const GLOW_MAP: Record<string, string> = {
   purple: 'rgba(168, 85, 247, 0.45)', pink: 'rgba(255, 79, 216, 0.45)',
 };
 
-const TAP_THRESHOLD_PX = 6;
+const TAP_THRESHOLD_PX = 4;
 
 export default function BlockShape({
   piece, size = 28, boardCellSize, isDraggable = false, isDragging = false,
@@ -69,7 +69,8 @@ export default function BlockShape({
           top: dragPos.y,
           pointerEvents: 'none',
           zIndex: 100,
-          willChange: 'transform',
+          willChange: 'left, top',
+          transition: 'none',
         }
       : undefined;
 
