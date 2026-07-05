@@ -1171,39 +1171,53 @@ button .btn-icon {
   list-style: none;
 }
 
-.leaderboard-item {
-  display: flex;
-  justify-content: space-between;
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto auto;
   align-items: center;
-  padding: 0.625rem 0.5rem;
-  border-bottom: 1px solid rgba(0, 82, 255, 0.1);
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid rgba(0, 82, 255, 0.08);
   font-size: clamp(0.625rem, 3vw, 0.75rem);
   border-radius: var(--radius-sm);
   transition: background 0.1s ease;
 }
 
-.leaderboard-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+.leaderboard-row:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .leaderboard-rank {
   color: var(--base-bright);
-  margin-right: 0.5rem;
-  min-width: 1.75rem;
+  font-weight: bold;
+  text-align: center;
 }
 
 .leaderboard-name {
   color: var(--text);
-}
-
-.leaderboard-level {
-  color: var(--text-dim);
-  margin-left: 0.25rem;
+  font-family: 'Courier New', monospace;
+  font-size: clamp(0.5rem, 2.5vw, 0.625rem);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .leaderboard-score {
   color: var(--frog);
   font-family: 'Press Start 2P', 'Courier New', monospace;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.leaderboard-level {
+  color: var(--text-dim);
+  font-size: clamp(0.4rem, 2vw, 0.5rem);
+  letter-spacing: 0.05em;
+  text-align: center;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .leaderboard-empty {
