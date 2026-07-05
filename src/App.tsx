@@ -93,17 +93,26 @@ export default function App() {
     actions.endGame();
   }, [actions]);
 
-  // Score popup trigger
+  // Score popup trigger — shows EVERY block placement + score change
   const prevScoreRef = useRef(gameState.score);
+  const prevPlacedLenRef = useRef(0);
   useEffect(() => {
+    // Show popup on every new block placement
+    const newPlacement = gameState.lastPlacedCells.length > 0 &&
+      gameState.lastPlacedCells.length !== prevPlacedLenRef.current;
     const diff = gameState.score - prevScoreRef.current;
-    if (diff > 0 && gameState.phase === 'playing') {
-      setScorePopup({ points: diff, key: Date.now() });
+
+    if (gameState.phase === 'playing' && (newPlacement || diff > 0)) {
+      const points = diff > 0 ? diff : 1; // Show +1 minimum on placement
+      setScorePopup({ points, key: Date.now() });
       const t = setTimeout(() => setScorePopup(null), 900);
+      prevPlacedLenRef.current = gameState.lastPlacedCells.length;
+      prevScoreRef.current = gameState.score;
       return () => clearTimeout(t);
     }
     prevScoreRef.current = gameState.score;
-  }, [gameState.score, gameState.phase]);
+    prevPlacedLenRef.current = gameState.lastPlacedCells.length;
+  }, [gameState.score, gameState.phase, gameState.lastPlacedCells]);
 
   // Placement sparkle trigger — show on every block placement
   const [showSparkle, setShowSparkle] = useState(false);
@@ -128,6 +137,8 @@ export default function App() {
       // Screen shake for big combos
       if (gameState.combo >= 3) {
         setShaking(true);
+        // Stronger haptic for combos
+        try { navigator.vibrate?.([20, 30, 20]); } catch { /* ignore */ }
         const t = setTimeout(() => setShaking(false), 300);
         return () => {
           clearTimeout(t);
@@ -227,6 +238,8 @@ export default function App() {
       if (canPlace(gridRef.current, piece.shape, pos)) {
         actions.placePiece(piece, pos);
         setSelectedPieceId(null);
+        // Haptic feedback on mobile
+        try { navigator.vibrate?.(15); } catch { /* ignore */ }
       }
     },
     [selectedPieceId, gameState.pieces, actions],
@@ -329,6 +342,8 @@ export default function App() {
 
         if (canPlace(gridRef.current, piece.shape, pos)) {
           actions.placePiece(piece, pos);
+          // Haptic feedback on mobile
+          try { navigator.vibrate?.(15); } catch { /* ignore */ }
         }
       }
     },
@@ -512,13 +527,14 @@ export default function App() {
                 const dx = Math.cos(angle) * dist;
                 const dy = Math.sin(angle) * dist;
                 const colors = ['#00e5ff', '#00e676', '#ffea00', '#4d8aff'];
+                const sparkSize = Math.max(4, Math.min(7, Math.round(window.innerWidth / 80)));
                 return (
                   <div
                     key={i}
                     style={{
                       position: 'absolute',
-                      width: 4,
-                      height: 4,
+                      width: sparkSize,
+                      height: sparkSize,
                       borderRadius: '50%',
                       top: '50%',
                       left: '50%',
