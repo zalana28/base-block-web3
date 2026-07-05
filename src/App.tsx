@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
+import { canPlaceAnyOfPieces } from "./lib/game/validator.js";
 import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
@@ -47,12 +48,17 @@ export default function App() {
   const boardRectRef = useRef<DOMRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // (clearing animation state now lives in useGameState)
-  const [clearingRows] = useState<number[]>([]);
-  const [clearingCols] = useState<number[]>([]);
-
   // Score pop-up state
   const [scorePopup, setScorePopup] = useState<{ points: number; key: number } | null>(null);
+
+  // Combo visual state
+  const [comboPopup, setComboPopup] = useState<{ combo: number; key: number } | null>(null);
+
+  // Screen shake state
+  const [shaking, setShaking] = useState(false);
+
+  // Game over warning — board pulsing red
+  const [boardWarning, setBoardWarning] = useState(false);
 
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
@@ -69,6 +75,42 @@ export default function App() {
     prevScoreRef.current = gameState.score;
   }, [gameState.score, gameState.phase]);
 
+  // Combo popup trigger
+  const prevComboRef = useRef(gameState.combo);
+  useEffect(() => {
+    if (gameState.combo > prevComboRef.current && gameState.combo >= 2 && gameState.phase === 'playing') {
+      setComboPopup({ combo: gameState.combo, key: Date.now() });
+
+      // Screen shake for big combos
+      if (gameState.combo >= 3) {
+        setShaking(true);
+        const t = setTimeout(() => setShaking(false), 300);
+        return () => {
+          clearTimeout(t);
+          setComboPopup(null);
+        };
+      }
+
+      const t = setTimeout(() => setComboPopup(null), 1200);
+      return () => clearTimeout(t);
+    }
+    prevComboRef.current = gameState.combo;
+  }, [gameState.combo, gameState.phase]);
+
+  // Board warning: pulse red when almost no moves left
+  useEffect(() => {
+    if (gameState.phase !== 'playing') {
+      setBoardWarning(false);
+      return;
+    }
+    const visible = gameState.pieces.filter((p): p is BlockPiece => p !== null);
+    if (visible.length === 0) return;
+
+    // Check if any piece can be placed
+    const canPlaceAny = canPlaceAnyOfPieces(gameState.grid, visible);
+    setBoardWarning(!canPlaceAny);
+  }, [gameState.grid, gameState.pieces, gameState.phase]);
+
   // Ref untuk grid — hindari stale closure di RAF
   const gridRef = useRef(gameState.grid);
   useEffect(() => {
@@ -76,8 +118,6 @@ export default function App() {
   }, [gameState.grid]);
 
   // Auto-submit score on game over
-  // FIX: skip submit kalau score === 0 — kontrak revert dengan "Score must be > 0"
-  // yang bikin wallet stuck di "Previewing your transaction..."
   useEffect(() => {
     if (gameState.phase === "over") {
       setPhase("over");
@@ -133,7 +173,6 @@ export default function App() {
       const clientX = e.clientX;
       const clientY = e.clientY;
 
-      // Anchor at the visual center of the piece's bounding shape
       const anchorRow = Math.floor((piece.shape.length - 1) / 2);
       const anchorCol = Math.floor(((piece.shape[0]?.length ?? 1) - 1) / 2);
 
@@ -151,10 +190,8 @@ export default function App() {
 
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
-      // Clear any tap selection when user starts dragging
       setSelectedPieceId(null);
 
-      // Cancel any pending RAF from previous drag
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -163,7 +200,6 @@ export default function App() {
       if (boardRef.current) {
         const rect = boardRef.current.getBoundingClientRect();
         boardCellSizeRef.current = rect.width / 8;
-        // FIX: Save rect ke ref biar handleDragMove bisa pakai
         boardRectRef.current = rect;
       }
       isDraggingRef.current = true;
@@ -188,7 +224,6 @@ export default function App() {
     (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
 
-      // FIX: Direct update tanpa RAF untuk responsiveness maksimal
       const piece = dragPieceRef.current;
       const grab = grabOffsetRef.current;
       const rect = boardRectRef.current;
@@ -217,7 +252,6 @@ export default function App() {
 
   const handleDragEnd = useCallback(
     (clientX: number, clientY: number) => {
-      // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
       const wasDragging = isDraggingRef.current;
       const piece = dragPieceRef.current;
       const grab = grabOffsetRef.current;
@@ -231,13 +265,11 @@ export default function App() {
         rafRef.current = null;
       }
 
-      // Clear drag visual immediately
       setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
 
       if (wasDragging && piece) {
         let rect = boardRectRef.current;
         if (!rect) {
-          // Fallback: recalculate rect kalau null (edge case resize)
           if (boardRef.current) {
             rect = boardRef.current.getBoundingClientRect();
             boardRectRef.current = rect;
@@ -251,7 +283,6 @@ export default function App() {
         const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
         const pos = { row, col };
 
-        // Pakai gridRef.current untuk consistency
         if (canPlace(gridRef.current, piece.shape, pos)) {
           actions.placePiece(piece, pos);
         }
@@ -266,7 +297,6 @@ export default function App() {
     setPhase("playing");
   }, [actions]);
 
-  // FIX: guard manual submit terhadap score=0 supaya gak trigger kontrak revert
   const handleManualSubmit = useCallback(() => {
     if (gameState.score === 0) return;
     txReset();
@@ -327,6 +357,9 @@ export default function App() {
           bestScore={gameState.bestScore}
           mode={gameState.mode}
           level={gameState.level}
+          combo={gameState.maxCombo}
+          totalCleared={gameState.totalCleared}
+          totalMoves={gameState.totalMoves}
           reason={gameOverReason}
           onPlayAgain={handlePlayAgain}
           onViewLeaderboard={() => setShowLeaderboard(true)}
@@ -338,10 +371,12 @@ export default function App() {
   return (
     <>
       {ambientBackground}
-      <div className="game-screen">
+      <div className={`game-screen${shaking ? ' shake' : ''}${boardWarning ? ' board-warning' : ''}`}>
         <div className="game-header">
           <div className="game-header-title">BASE BLOCK</div>
-          <div className="game-header-subtitle">ON BASE NETWORK</div>
+          <div className="game-header-subtitle">
+            {gameState.mode === 0 ? 'CLASSIC' : `ARCADE — LVL ${gameState.level}`}
+          </div>
         </div>
 
         <ScoreBoard
@@ -355,22 +390,40 @@ export default function App() {
           timeLeft={gameState.timeLeft}
         />
 
-        <GameBoard
-          grid={gameState.grid}
-          ghostPiece={dragState.piece}
-          ghostPos={dragState.ghost}
-          isGhostValid={dragState.ghostValid}
-          clearingRows={clearingRows}
-          clearingCols={clearingCols}
-          boardRef={boardRef}
-          onPointerDown={handleBoardTap}
-        />
+        <div className="board-wrapper" style={{ position: 'relative' }}>
+          <GameBoard
+            grid={gameState.grid}
+            ghostPiece={dragState.piece}
+            ghostPos={dragState.ghost}
+            isGhostValid={dragState.ghostValid}
+            clearingRows={gameState.clearingRows}
+            clearingCols={gameState.clearingCols}
+            lastPlacedCells={gameState.lastPlacedCells}
+            boardRef={boardRef}
+            onPointerDown={handleBoardTap}
+          />
 
-        {scorePopup && (
-          <div key={scorePopup.key} className="score-popup">
-            +{scorePopup.points.toLocaleString()}
-          </div>
-        )}
+          {scorePopup && (
+            <div key={scorePopup.key} className="score-popup">
+              +{scorePopup.points.toLocaleString()}
+            </div>
+          )}
+
+          {comboPopup && (
+            <div key={comboPopup.key} className={`combo-popup combo-${Math.min(comboPopup.combo, 5)}`}>
+              {comboPopup.combo}x COMBO!
+            </div>
+          )}
+
+          {/* Particle burst on line clear */}
+          {gameState.clearingRows.length > 0 && (
+            <div className="particle-burst" aria-hidden="true">
+              {Array.from({ length: 12 }, (_, i) => (
+                <div key={i} className={`particle p${i}`} />
+              ))}
+            </div>
+          )}
+        </div>
 
         {gameState.mode === 0 && (
           <div className="submit-score-section">
@@ -408,8 +461,6 @@ export default function App() {
           onDragEnd={handleDragEnd}
           onSelectPiece={handleSelectPiece}
         />
-
-        {/* NextTray hidden — user request: "bikin rusuh aja" */}
       </div>
     </>
   );

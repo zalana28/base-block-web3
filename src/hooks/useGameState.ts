@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createGrid, placeBlock, clearLines, canPlace } from '../lib/game/grid.js';
 import { canPlaceAnyOfPieces } from '../lib/game/validator.js';
 import { calculateScore } from '../lib/game/scoring.js';
-import type { BlockPiece, GameState, Grid } from '../lib/game/types.js';
+import type { BlockPiece, GameState, Grid, Position } from '../lib/game/types.js';
 import { useScore } from './useScore.js';
 import { useBlockGenerator } from './useBlockGenerator.js';
 
@@ -65,6 +65,17 @@ function vibrate(ms: number) {
   try { navigator.vibrate?.(ms); } catch { /* unsupported */ }
 }
 
+// Helper: get absolute cell positions from a piece placement
+function getPlacedCells(piece: BlockPiece, pos: { row: number; col: number }): Position[] {
+  const cells: Position[] = [];
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (piece.shape[r][c]) cells.push({ row: pos.row + r, col: pos.col + c });
+    }
+  }
+  return cells;
+}
+
 export function useGameState(): [GameState, Actions] {
   const { score, bestScore, addScore, reset: resetScore } = useScore();
   const { pieces, nextPieces, regenerate, markUsed } = useBlockGenerator();
@@ -74,6 +85,7 @@ export function useGameState(): [GameState, Actions] {
   const [maxCombo, setMaxCombo] = useState(0);
   const [streak, setStreak] = useState(0);
   const [totalCleared, setTotalCleared] = useState(0);
+  const [totalMoves, setTotalMoves] = useState(0);
   const [phase, setPhase] = useState<'menu' | 'playing' | 'over'>('menu');
   const [mode, setMode] = useState<0 | 1>(0);
   const [level, setLevel] = useState(1);
@@ -85,10 +97,9 @@ export function useGameState(): [GameState, Actions] {
   const [clearingCols, setClearingCols] = useState<number[]>([]);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Score pop-up
-  const [lastPoints, setLastPoints] = useState<number | null>(null);
-  const [showPoints, setShowPoints] = useState(false);
-  const pointsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Placement animation
+  const [lastPlacedCells, setLastPlacedCells] = useState<Position[]>([]);
+  const placedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Delayed game-over
   const gameOverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,22 +116,18 @@ export function useGameState(): [GameState, Actions] {
   const gameState: GameState = useMemo(
     () => ({
       grid, pieces, nextPieces, score, bestScore,
-      combo, maxCombo, streak, totalCleared, phase,
+      combo, maxCombo, streak, totalCleared, totalMoves, phase,
       mode, level, targetScore, timeLeft,
+      clearingRows, clearingCols, lastPlacedCells,
     }),
-    [grid, pieces, nextPieces, score, bestScore, combo, maxCombo, streak, totalCleared, phase, mode, level, targetScore, timeLeft],
+    [grid, pieces, nextPieces, score, bestScore, combo, maxCombo, streak, totalCleared, totalMoves, phase, mode, level, targetScore, timeLeft, clearingRows, clearingCols, lastPlacedCells],
   );
-
-  // ── Expose clearing animation + score popup to UI (unused internally, for future extension)
-  const _clearAnim = useMemo(() => ({ clearingRows, clearingCols }), [clearingRows, clearingCols]);
-  const _scorePopup = useMemo(() => ({ points: lastPoints, show: showPoints }), [lastPoints, showPoints]);
-  void _clearAnim; void _scorePopup;
 
   const startGame = useCallback((initialMode: 0 | 1 = 0) => {
     // Clean up timers
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
-    if (pointsTimerRef.current) clearTimeout(pointsTimerRef.current);
+    if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
 
     setGrid(createGrid());
     resetScore();
@@ -129,9 +136,9 @@ export function useGameState(): [GameState, Actions] {
     prevLevelRef.current = 1;
     regenerate(1);
     setTimeLeft(ARCADE_TIME_PER_LEVEL);
-    setCombo(0); setMaxCombo(0); setStreak(0); setTotalCleared(0);
+    setCombo(0); setMaxCombo(0); setStreak(0); setTotalCleared(0); setTotalMoves(0);
     setClearingRows([]); setClearingCols([]);
-    setLastPoints(null); setShowPoints(false);
+    setLastPlacedCells([]);
     setPhase('playing');
   }, [resetScore, regenerate]);
 
@@ -159,13 +166,19 @@ export function useGameState(): [GameState, Actions] {
       vibrate(8);
       sfxPlace();
 
+      // Track placed cells for placement animation
+      const placedCells = getPlacedCells(piece, pos);
+      setLastPlacedCells(placedCells);
+      if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
+      placedTimerRef.current = setTimeout(() => setLastPlacedCells([]), 300);
+
       const afterPlace = placeBlock(grid, piece.shape, piece.color, pos);
       const { grid: afterClear, result } = clearLines(afterPlace);
       const linesCleared = result.clearedRows.length + result.clearedCols.length;
 
-      const placedCells = piece.shape.flat().filter(Boolean).length;
+      const placedCellsCount = piece.shape.flat().filter(Boolean).length;
       const points = calculateScore(
-        placedCells, result.cellsCleared, result.isCombo, linesCleared, streak,
+        placedCellsCount, result.cellsCleared, result.isCombo, linesCleared, streak,
       );
 
       // ── If lines cleared, show animation first, then apply ──
@@ -177,12 +190,6 @@ export function useGameState(): [GameState, Actions] {
         // Show clearing animation
         setClearingRows(result.clearedRows);
         setClearingCols(result.clearedCols);
-
-        // Score pop-up
-        setLastPoints(points);
-        setShowPoints(true);
-        if (pointsTimerRef.current) clearTimeout(pointsTimerRef.current);
-        pointsTimerRef.current = setTimeout(() => setShowPoints(false), 800);
 
         // Clear animation runs for 320ms, then apply grid change
         if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
@@ -207,6 +214,7 @@ export function useGameState(): [GameState, Actions] {
 
       addScore(points);
       markUsed(piece.id, level);
+      setTotalMoves((m) => m + 1);
 
       // Arcade level-up check
       if (mode === 1) {
@@ -226,31 +234,6 @@ export function useGameState(): [GameState, Actions] {
   );
 
   // ── Delayed game-over check ───────────────────────────────
-  // Wait for clearing animation to finish before checking game-over
-  useEffect(() => {
-    if (phase !== 'playing') return;
-    if (!justRegeneratedRef.current) return;
-    if (visiblePieces.length === 0) return;
-    justRegeneratedRef.current = false;
-
-    // Delay to let clearing animation play
-    const delay = clearingRows.length > 0 || clearingCols.length > 0 ? 380 : 60;
-    if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
-    gameOverTimerRef.current = setTimeout(() => {
-      if (!canPlaceAnyOfPieces(grid, visiblePieces)) {
-        setPhase('over');
-      }
-    }, delay);
-
-    return () => {
-      if (gameOverTimerRef.current) {
-        clearTimeout(gameOverTimerRef.current);
-        gameOverTimerRef.current = null;
-      }
-    };
-  }, [visiblePieces, grid, phase, clearingRows, clearingCols]);
-
-  // Cek game over setiap pieces update
   useEffect(() => {
     if (phase !== 'playing') return;
     if (visiblePieces.length === 0) return;
@@ -272,7 +255,7 @@ export function useGameState(): [GameState, Actions] {
   const resetGame = useCallback(() => {
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
-    if (pointsTimerRef.current) clearTimeout(pointsTimerRef.current);
+    if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
     setPhase('menu');
   }, []);
 

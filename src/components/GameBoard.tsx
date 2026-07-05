@@ -8,6 +8,7 @@ interface Props {
   isGhostValid?: boolean;
   clearingRows?: number[];
   clearingCols?: number[];
+  lastPlacedCells?: Position[];
   boardRef?: RefObject<HTMLDivElement | null>;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -21,10 +22,14 @@ const COLOR_MAP: Record<string, string> = {
 
 export default function GameBoard({
   grid, ghostPiece, ghostPos, isGhostValid,
-  clearingRows = [], clearingCols = [], boardRef, onPointerDown,
+  clearingRows = [], clearingCols = [], lastPlacedCells = [],
+  boardRef, onPointerDown,
 }: Props) {
   const isClearingCell = (row: number, col: number) =>
     clearingRows.includes(row) || clearingCols.includes(col);
+
+  const isJustPlaced = (row: number, col: number) =>
+    lastPlacedCells.some(c => c.row === row && c.col === col);
 
   const isGhostCell = (row: number, col: number) => {
     if (!ghostPiece || !ghostPos) return false;
@@ -48,6 +53,7 @@ export default function GameBoard({
         Array.from({ length: 8 }, (_, col) => {
           const color = grid[row][col];
           const isClearing = isClearingCell(row, col);
+          const isPlaced = isJustPlaced(row, col);
           const isGhost = isGhostCell(row, col);
           const ghostClass = isGhost ? (isGhostValid ? 'ghost-valid' : 'ghost-invalid') : '';
           const cellClass = [
@@ -55,6 +61,7 @@ export default function GameBoard({
             color ? 'filled' : '',
             ghostClass,
             isClearing ? 'clearing' : '',
+            isPlaced ? 'just-placed' : '',
           ].filter(Boolean).join(' ');
 
           const style: React.CSSProperties = {};
