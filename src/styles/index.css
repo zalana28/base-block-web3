@@ -568,6 +568,100 @@ button .btn-icon {
   text-align: center;
   padding: 0.375rem 0;
   flex-shrink: 0;
+  width: 100%;
+}
+
+.game-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.settings-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.settings-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.settings-btn:active {
+  transform: scale(0.93);
+}
+
+.settings-btn[aria-expanded="true"] {
+  color: var(--base-cyan);
+  border-color: var(--base-cyan);
+  background: rgba(0, 82, 255, 0.1);
+}
+
+.settings-menu {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  background: rgba(10, 12, 28, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  padding: 0.375rem 0;
+  min-width: 11rem;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: menuSlideIn 0.15s ease-out;
+}
+
+@keyframes menuSlideIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.settings-item {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.settings-item.danger {
+  color: var(--danger);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
 }
 
 .game-header-title {

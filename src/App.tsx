@@ -63,6 +63,36 @@ export default function App() {
   const [gameState, actions] = useGameState();
   const boardRef = useRef<HTMLDivElement>(null);
 
+  // Settings menu
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Close settings on outside click
+  useEffect(() => {
+    if (!showSettings) return;
+    function handleClick(e: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    }
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
+  }, [showSettings]);
+
+  const handleQuitGame = useCallback(() => {
+    setShowSettings(false);
+    actions.resetGame();
+    setScoreSubmitted(false);
+    setManualSubmitted(false);
+    txReset();
+    setPhase("wallet");
+  }, [actions, txReset]);
+
+  const handleGameOver = useCallback(() => {
+    setShowSettings(false);
+    actions.endGame();
+  }, [actions]);
+
   // Score popup trigger
   const prevScoreRef = useRef(gameState.score);
   useEffect(() => {
@@ -373,9 +403,44 @@ export default function App() {
       {ambientBackground}
       <div className={`game-screen${shaking ? ' shake' : ''}${boardWarning ? ' board-warning' : ''}`}>
         <div className="game-header">
-          <div className="game-header-title">BASE BLOCK</div>
-          <div className="game-header-subtitle">
-            {gameState.mode === 0 ? 'CLASSIC' : `ARCADE — LVL ${gameState.level}`}
+          <div className="game-header-row">
+            <div>
+              <div className="game-header-title">BASE BLOCK</div>
+              <div className="game-header-subtitle">
+                {gameState.mode === 0 ? 'CLASSIC' : `ARCADE — LVL ${gameState.level}`}
+              </div>
+            </div>
+            <div className="settings-wrap" ref={settingsRef}>
+              <button
+                className="settings-btn"
+                onClick={() => setShowSettings(s => !s)}
+                aria-label="Settings"
+                aria-expanded={showSettings}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+              {showSettings && (
+                <div className="settings-menu" role="menu">
+                  <button className="settings-item" onClick={() => { setShowSettings(false); setShowLeaderboard(true); }}>
+                    🏆 Leaderboard
+                  </button>
+                  {gameState.mode === 0 && gameState.score > 0 && (
+                    <button className="settings-item" onClick={() => { setShowSettings(false); handleManualSubmit(); }}>
+                      📤 Submit Score
+                    </button>
+                  )}
+                  <button className="settings-item danger" onClick={handleGameOver}>
+                    🏳️ End Game
+                  </button>
+                  <button className="settings-item danger" onClick={handleQuitGame}>
+                    🚪 Quit to Menu
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -257,9 +257,16 @@ export function useGameState(): [GameState, Actions] {
     setPhase('menu');
   }, []);
 
+  const endGame = useCallback(() => {
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
+    if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
+    setPhase('over');
+  }, []);
+
   const actions = useMemo(
-    () => ({ startGame, placePiece, isGameOver, resetGame }),
-    [startGame, placePiece, isGameOver, resetGame],
+    () => ({ startGame, placePiece, isGameOver, resetGame, endGame }),
+    [startGame, placePiece, isGameOver, resetGame, endGame],
   );
 
   return [gameState, actions];
