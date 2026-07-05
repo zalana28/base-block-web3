@@ -1127,6 +1127,12 @@ button .btn-icon {
   cursor: grabbing;
 }
 
+/* Floating drag piece — rendered via Portal to body */
+.floating-drag-piece {
+  /* All positioning is via inline transform: translate3d */
+  /* This class exists for any global overrides */
+}
+
 .block-shape-cell {
   border-radius: 3px;
 }

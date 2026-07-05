@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { useRef, memo } from 'react';
+import { createPortal } from 'react-dom';
 import type { BlockPiece } from '../lib/game/types.js';
 
 interface Props {
@@ -30,8 +31,9 @@ const GLOW_MAP: Record<string, string> = {
 };
 
 const TAP_THRESHOLD_PX = 4;
+const LIFT_OFFSET_Y_RATIO = 0.8; // Lift block above finger by 0.8x cellSize
 
-export default function BlockShape({
+function BlockShape({
   piece, size = 28, boardCellSize, isDraggable = false, isDragging = false,
   isSelected = false, dragPos, onDragStart, onDragMove, onDragEnd, onSelectPiece,
 }: Props) {
@@ -42,8 +44,7 @@ export default function BlockShape({
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
-  // Responsive cell size for TRAY — bigger on mobile for easier touch
-  // Board cells are calculated from actual board width / 8
+  // Responsive cell size for TRAY
   const trayCellSize = typeof window !== 'undefined'
     ? Math.max(24, Math.min(32, Math.floor(window.innerWidth / 12)))
     : size;
@@ -58,29 +59,12 @@ export default function BlockShape({
 
   const trayStyle = getGridStyle(trayCellSize);
 
-  // Captured element: stays in tray, keeps pointer capture
+  // Tray element: hides when dragging (opacity 0) but keeps pointer capture
   const captureStyle: React.CSSProperties = {
     ...trayStyle,
     opacity: isDragging && dragPos ? 0 : undefined,
     pointerEvents: isDragging && dragPos ? 'auto' : undefined,
   };
-
-  // Floating clone: follows cursor, uses BOARD cell size so it matches the board
-  const floatStyle: React.CSSProperties | undefined =
-    isDragging && dragPos && boardCellSize
-      ? {
-          ...getGridStyle(boardCellSize),
-          position: 'fixed',
-          left: dragPos.x,
-          top: dragPos.y,
-          pointerEvents: 'none',
-          zIndex: 100,
-          willChange: 'left, top',
-          transition: 'none',
-          opacity: 0.85,
-          filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
-        }
-      : undefined;
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable) return;
@@ -139,7 +123,7 @@ export default function BlockShape({
   const glow = GLOW_MAP[piece.color] ?? 'rgba(255,255,255,0.2)';
   const bg = COLOR_MAP[piece.color] ?? 'transparent';
 
-  // Tray cells — use trayCellSize
+  // Tray cells
   const trayCells = piece.shape.map((row, r) =>
     row.map((filled, c) => (
       <div
@@ -156,9 +140,34 @@ export default function BlockShape({
     )),
   );
 
-  // Float cells — use boardCellSize for drag preview
-  const floatCells = boardCellSize
-    ? piece.shape.map((row, r) =>
+  // Selection halo
+  const selectionStyle: React.CSSProperties = isSelected && !isDragging
+    ? { filter: `drop-shadow(0 0 8px ${glow}) drop-shadow(0 0 16px ${glow})` }
+    : {};
+
+  // Floating clone — rendered via Portal to document.body
+  // Uses transform: translate3d for smooth GPU positioning
+  const floatCellSize = boardCellSize ?? trayCellSize;
+  const liftY = floatCellSize * LIFT_OFFSET_Y_RATIO;
+
+  const floatingElement = (isDragging && dragPos && boardCellSize) ? (
+    <div
+      className="floating-drag-piece"
+      style={{
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        zIndex: 9999,
+        pointerEvents: 'none',
+        willChange: 'transform',
+        transform: `translate3d(${dragPos.x}px, ${dragPos.y - liftY}px, 0)`,
+        ...getGridStyle(boardCellSize),
+        opacity: 0.9,
+        filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 12px rgba(0,229,255,0.3))',
+        transition: 'none',
+      }}
+    >
+      {piece.shape.map((row, r) =>
         row.map((filled, c) => (
           <div
             key={`${r}-${c}`}
@@ -172,15 +181,9 @@ export default function BlockShape({
             }}
           />
         )),
-      )
-    : trayCells;
-
-  // Selection halo
-  const selectionStyle: React.CSSProperties = isSelected && !isDragging
-    ? {
-        filter: `drop-shadow(0 0 8px ${glow}) drop-shadow(0 0 16px ${glow})`,
-      }
-    : {};
+      )}
+    </div>
+  ) : null;
 
   return (
     <>
@@ -195,11 +198,10 @@ export default function BlockShape({
         {trayCells}
       </div>
 
-      {floatStyle && (
-        <div className="block-shape" style={floatStyle}>
-          {floatCells}
-        </div>
-      )}
+      {/* Portal floating piece to body — bypasses all parent transforms/overflow */}
+      {floatingElement && createPortal(floatingElement, document.body)}
     </>
   );
 }
+
+export default memo(BlockShape);

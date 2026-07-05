@@ -264,6 +264,9 @@ export default function App() {
       grabOffsetRef.current = { row: anchorRow, col: anchorCol };
       const cellSize = boardCellSizeRef.current;
       const grab = grabOffsetRef.current;
+      // Position: top-left corner of the floating piece
+      // Floating piece uses left:0,top:0 + transform:translate3d, so we compute
+      // the raw x,y that represents the piece's top-left offset from viewport origin
       setDragState({
         piece,
         pos: {

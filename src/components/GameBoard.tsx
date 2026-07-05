@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { memo } from 'react';
 import type { Grid, BlockPiece, Position } from '../lib/game/types.js';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   clearingRows?: number[];
   clearingCols?: number[];
   lastPlacedCells?: Position[];
-  boardRef?: RefObject<HTMLDivElement | null>;
+  boardRef?: React.Ref<HTMLDivElement>;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
 
@@ -20,7 +20,7 @@ const COLOR_MAP: Record<string, string> = {
   purple: 'var(--block-purple)', pink: 'var(--block-pink)',
 };
 
-export default function GameBoard({
+function GameBoard({
   grid, ghostPiece, ghostPos, isGhostValid,
   clearingRows = [], clearingCols = [], lastPlacedCells = [],
   boardRef, onPointerDown,
@@ -84,3 +84,5 @@ export default function GameBoard({
     </div>
   );
 }
+
+export default memo(GameBoard);

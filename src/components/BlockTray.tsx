@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { BlockPiece } from '../lib/game/types.js';
 import BlockShape from './BlockShape.js';
 
@@ -13,7 +14,7 @@ interface Props {
   onSelectPiece?: (pieceId: string | null) => void;
 }
 
-export default function BlockTray({
+function BlockTray({
   pieces, draggedPieceId, selectedPieceId = null, dragPos, cellSize = 28,
   onDragStart, onDragMove, onDragEnd, onSelectPiece,
 }: Props) {
@@ -27,8 +28,7 @@ export default function BlockTray({
           <BlockShape
             key={piece.id ?? `piece-${i}`}
             piece={piece}
-            // Always pass boardCellSize so floating clone matches board
-            boardCellSize={isDragged ? cellSize : cellSize}
+            boardCellSize={cellSize}
             isDraggable
             isDragging={isDragged}
             isSelected={isSelected}
@@ -43,3 +43,5 @@ export default function BlockTray({
     </div>
   );
 }
+
+export default memo(BlockTray);
