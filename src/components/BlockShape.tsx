@@ -42,6 +42,11 @@ export default function BlockShape({
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
+  // Responsive cell size based on viewport
+  const responsiveSize = typeof window !== 'undefined'
+    ? Math.max(18, Math.min(26, Math.floor(window.innerWidth / 16)))
+    : size;
+
   const getGridStyle = (sz: number): React.CSSProperties => ({
     display: 'grid',
     gridTemplateColumns: `repeat(${cols}, ${sz}px)`,
@@ -50,7 +55,7 @@ export default function BlockShape({
     touchAction: 'none',
   });
 
-  const trayStyle = getGridStyle(size);
+  const trayStyle = getGridStyle(responsiveSize);
 
   // Captured element: stays in tray, keeps pointer capture, never switches layout mode
   const captureStyle: React.CSSProperties = {
@@ -100,8 +105,8 @@ export default function BlockShape({
         hasDragged.current = true;
         // Convert to drag start
         if (startOffset.current) {
-          const anchorCol = Math.floor(startOffset.current.x / size);
-          const anchorRow = Math.floor(startOffset.current.y / size);
+          const anchorCol = Math.floor(startOffset.current.x / responsiveSize);
+          const anchorRow = Math.floor(startOffset.current.y / responsiveSize);
           const ac = Math.max(0, Math.min(cols - 1, anchorCol));
           const ar = Math.max(0, Math.min(rows - 1, anchorRow));
           onDragStart?.(piece, ar, ac, e.clientX, e.clientY);
@@ -135,7 +140,7 @@ export default function BlockShape({
 
   const cells = piece.shape.map((row, r) =>
     row.map((filled, c) => {
-      const sz = boardCellSize ?? size;
+      const sz = boardCellSize ?? responsiveSize;
       return (
         <div
           key={`${r}-${c}`}
