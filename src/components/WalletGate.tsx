@@ -67,7 +67,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
               {address.slice(0, 6)}...{address.slice(-4)}
             </p>
 
-            <div className="feature-grid single-column">
+            <div className="feature-grid">
               <button
                 className="feature-card"
                 onClick={() => handleSelectMode(0)}
