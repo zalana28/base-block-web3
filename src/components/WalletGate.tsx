@@ -74,11 +74,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
                 disabled={status === 'pending' || status === 'confirming'}
                 aria-label="Start Classic mode"
               >
-                <div className="feature-icon">🧩</div>
-                <div className="feature-title">CLASSIC MODE</div>
-                <div className="feature-desc">
-                  Endless block stacking. Strategize every piece to keep the board clear.
-                </div>
+                <div className="feature-title">CLASSIC</div>
                 {selectedMode === 0 && (status === 'pending' || status === 'confirming') && (
                   <div className="tx-status" style={{ marginTop: 8 }}>
                     <span className="dot pending" /> Starting onchain session…
@@ -92,11 +88,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
                 disabled={status === 'pending' || status === 'confirming'}
                 aria-label="Start Arcade mode"
               >
-                <div className="feature-icon">⚡</div>
-                <div className="feature-title">ARCADE MODE</div>
-                <div className="feature-desc">
-                  Race the clock, hit level targets, and climb the leaderboard.
-                </div>
+                <div className="feature-title">ARCADE</div>
                 {selectedMode === 1 && (status === 'pending' || status === 'confirming') && (
                   <div className="tx-status" style={{ marginTop: 8 }}>
                     <span className="dot pending" /> Starting onchain session…

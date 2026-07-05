@@ -5,7 +5,7 @@ import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
-import NextTray from "./components/NextTray.js";
+// NextTray import removed — hidden per user request
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
@@ -409,7 +409,7 @@ export default function App() {
           onSelectPiece={handleSelectPiece}
         />
 
-        <NextTray pieces={gameState.nextPieces} />
+        {/* NextTray hidden — user request: "bikin rusuh aja" */}
       </div>
     </>
   );
