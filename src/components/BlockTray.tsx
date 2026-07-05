@@ -27,8 +27,8 @@ export default function BlockTray({
           <BlockShape
             key={piece.id ?? `piece-${i}`}
             piece={piece}
-            size={28}
-            boardCellSize={isDragged ? cellSize : undefined}
+            // Always pass boardCellSize so floating clone matches board
+            boardCellSize={isDragged ? cellSize : cellSize}
             isDraggable
             isDragging={isDragged}
             isSelected={isSelected}

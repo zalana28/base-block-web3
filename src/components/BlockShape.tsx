@@ -42,9 +42,10 @@ export default function BlockShape({
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
-  // Responsive cell size based on viewport
-  const responsiveSize = typeof window !== 'undefined'
-    ? Math.max(18, Math.min(26, Math.floor(window.innerWidth / 16)))
+  // Responsive cell size for TRAY — bigger on mobile for easier touch
+  // Board cells are calculated from actual board width / 8
+  const trayCellSize = typeof window !== 'undefined'
+    ? Math.max(24, Math.min(32, Math.floor(window.innerWidth / 12)))
     : size;
 
   const getGridStyle = (sz: number): React.CSSProperties => ({
@@ -55,20 +56,20 @@ export default function BlockShape({
     touchAction: 'none',
   });
 
-  const trayStyle = getGridStyle(responsiveSize);
+  const trayStyle = getGridStyle(trayCellSize);
 
-  // Captured element: stays in tray, keeps pointer capture, never switches layout mode
+  // Captured element: stays in tray, keeps pointer capture
   const captureStyle: React.CSSProperties = {
     ...trayStyle,
     opacity: isDragging && dragPos ? 0 : undefined,
     pointerEvents: isDragging && dragPos ? 'auto' : undefined,
   };
 
-  // Floating clone: follows cursor, no pointer events (visual only)
+  // Floating clone: follows cursor, uses BOARD cell size so it matches the board
   const floatStyle: React.CSSProperties | undefined =
-    isDragging && dragPos
+    isDragging && dragPos && boardCellSize
       ? {
-          ...getGridStyle(boardCellSize ?? size),
+          ...getGridStyle(boardCellSize),
           position: 'fixed',
           left: dragPos.x,
           top: dragPos.y,
@@ -76,6 +77,8 @@ export default function BlockShape({
           zIndex: 100,
           willChange: 'left, top',
           transition: 'none',
+          opacity: 0.85,
+          filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
         }
       : undefined;
 
@@ -103,10 +106,9 @@ export default function BlockShape({
       const dy = e.clientY - startClientPos.current.y;
       if (Math.hypot(dx, dy) > TAP_THRESHOLD_PX) {
         hasDragged.current = true;
-        // Convert to drag start
         if (startOffset.current) {
-          const anchorCol = Math.floor(startOffset.current.x / responsiveSize);
-          const anchorRow = Math.floor(startOffset.current.y / responsiveSize);
+          const anchorCol = Math.floor(startOffset.current.x / trayCellSize);
+          const anchorRow = Math.floor(startOffset.current.y / trayCellSize);
           const ac = Math.max(0, Math.min(cols - 1, anchorCol));
           const ar = Math.max(0, Math.min(rows - 1, anchorRow));
           onDragStart?.(piece, ar, ac, e.clientX, e.clientY);
@@ -122,12 +124,11 @@ export default function BlockShape({
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable || !isPointerDown.current) return;
     isPointerDown.current = false;
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore release failure */ }
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
 
     if (hasDragged.current) {
       onDragEnd?.(e.clientX, e.clientY);
     } else {
-      // Treat as tap: select/deselect piece
       onSelectPiece?.(piece.id);
     }
     hasDragged.current = false;
@@ -138,25 +139,43 @@ export default function BlockShape({
   const glow = GLOW_MAP[piece.color] ?? 'rgba(255,255,255,0.2)';
   const bg = COLOR_MAP[piece.color] ?? 'transparent';
 
-  const cells = piece.shape.map((row, r) =>
-    row.map((filled, c) => {
-      const sz = boardCellSize ?? responsiveSize;
-      return (
-        <div
-          key={`${r}-${c}`}
-          className={`block-shape-cell${filled ? ' filled' : ''}`}
-          style={{
-            width: sz, height: sz,
-            background: filled ? bg : 'transparent',
-            borderRadius: 4,
-            boxShadow: filled ? `0 0 8px ${glow}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
-          }}
-        />
-      );
-    }),
+  // Tray cells — use trayCellSize
+  const trayCells = piece.shape.map((row, r) =>
+    row.map((filled, c) => (
+      <div
+        key={`${r}-${c}`}
+        className={`block-shape-cell${filled ? ' filled' : ''}`}
+        style={{
+          width: trayCellSize,
+          height: trayCellSize,
+          background: filled ? bg : 'transparent',
+          borderRadius: 4,
+          boxShadow: filled ? `0 0 8px ${glow}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
+        }}
+      />
+    )),
   );
 
-  // Selection halo applied to the captured element
+  // Float cells — use boardCellSize for drag preview
+  const floatCells = boardCellSize
+    ? piece.shape.map((row, r) =>
+        row.map((filled, c) => (
+          <div
+            key={`${r}-${c}`}
+            className={`block-shape-cell${filled ? ' filled' : ''}`}
+            style={{
+              width: boardCellSize,
+              height: boardCellSize,
+              background: filled ? bg : 'transparent',
+              borderRadius: 4,
+              boxShadow: filled ? `0 0 12px ${glow}, 0 2px 8px rgba(0,0,0,0.5)` : undefined,
+            }}
+          />
+        )),
+      )
+    : trayCells;
+
+  // Selection halo
   const selectionStyle: React.CSSProperties = isSelected && !isDragging
     ? {
         filter: `drop-shadow(0 0 8px ${glow}) drop-shadow(0 0 16px ${glow})`,
@@ -173,12 +192,12 @@ export default function BlockShape({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        {cells}
+        {trayCells}
       </div>
 
       {floatStyle && (
         <div className="block-shape" style={floatStyle}>
-          {cells}
+          {floatCells}
         </div>
       )}
     </>

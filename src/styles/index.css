@@ -1128,8 +1128,6 @@ button .btn-icon {
 }
 
 .block-shape-cell {
-  width: clamp(20px, 7vw, 26px);
-  height: clamp(20px, 7vw, 26px);
   border-radius: 3px;
 }
 
