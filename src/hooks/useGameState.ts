@@ -104,8 +104,6 @@ export function useGameState(): [GameState, Actions] {
   // Delayed game-over
   const gameOverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const justRegeneratedRef = useRef(false);
-
   const visiblePieces = useMemo(
     () => pieces.filter((p): p is BlockPiece => p !== null),
     [pieces],

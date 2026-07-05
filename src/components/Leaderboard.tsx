@@ -1,18 +1,9 @@
 import { useContractEvents } from '../hooks/useContractEvents.js';
-import { base } from '../config/chain.js';
 import { GAME_CONTRACT_ADDRESS } from '../config/contract.js';
-
-interface Entry {
-  player: string;
-  score: number;
-  level: number;
-  mode: number;
-}
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
   const { entries, isLoading, error } = useContractEvents({
     address: GAME_CONTRACT_ADDRESS,
-    chainId: base.id,
   });
 
   return (

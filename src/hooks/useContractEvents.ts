@@ -53,10 +53,8 @@ function decodeLog(log: { topics: string[]; data: string }): Entry | null {
 
 export function useContractEvents({
   address,
-  chainId,
 }: {
   address: string;
-  chainId: number;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -137,7 +135,7 @@ export function useContractEvents({
     } finally {
       setIsLoading(false);
     }
-  }, [address, chainId]);
+  }, [address]);
 
   useEffect(() => {
     fetchLeaderboard();
