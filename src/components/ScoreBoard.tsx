@@ -1,3 +1,5 @@
+import { useRef, useEffect, useState } from 'react';
+
 interface Props {
   score: number;
   bestScore: number;
@@ -9,11 +11,11 @@ interface Props {
   timeLeft?: number;
 }
 
-function ScoreBlock({ label, value }: { label: string; value: number | string }) {
+function ScoreBlock({ label, value, bump }: { label: string; value: number | string; bump?: boolean }) {
   return (
     <div className="score-block">
       <span className="score-label">{label}</span>
-      <span className="score-value">{value}</span>
+      <span className={`score-value${bump ? ' bump' : ''}`}>{value}</span>
     </div>
   );
 }
@@ -28,6 +30,18 @@ export default function ScoreBoard({
   targetScore,
   timeLeft,
 }: Props) {
+  const [scoreBump, setScoreBump] = useState(false);
+  const prevScore = useRef(score);
+
+  useEffect(() => {
+    if (score !== prevScore.current && score > prevScore.current) {
+      setScoreBump(true);
+      const t = setTimeout(() => setScoreBump(false), 250);
+      return () => clearTimeout(t);
+    }
+    prevScore.current = score;
+  }, [score]);
+
   const progress = targetScore && targetScore > 0
     ? Math.min(score / targetScore, 1)
     : 0;
@@ -43,7 +57,7 @@ export default function ScoreBoard({
     <div className="score-board" aria-label="Score display">
       <div className="score-board-row">
         <div className="score-board-left">
-          <ScoreBlock label="SCORE" value={score} />
+          <ScoreBlock label="SCORE" value={score} bump={scoreBump} />
           <ScoreBlock label="BEST" value={bestScore} />
         </div>
         <div className="score-board-right">

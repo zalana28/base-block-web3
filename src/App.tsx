@@ -105,6 +105,20 @@ export default function App() {
     prevScoreRef.current = gameState.score;
   }, [gameState.score, gameState.phase]);
 
+  // Placement sparkle trigger — show on every block placement
+  const [showSparkle, setShowSparkle] = useState(false);
+  const sparkleKeyRef = useRef(0);
+  const prevPlacedRef = useRef(gameState.lastPlacedCells);
+  useEffect(() => {
+    if (gameState.lastPlacedCells.length > 0 && gameState.lastPlacedCells !== prevPlacedRef.current) {
+      sparkleKeyRef.current++;
+      setShowSparkle(true);
+      const t = setTimeout(() => setShowSparkle(false), 500);
+      return () => clearTimeout(t);
+    }
+    prevPlacedRef.current = gameState.lastPlacedCells;
+  }, [gameState.lastPlacedCells]);
+
   // Combo popup trigger
   const prevComboRef = useRef(gameState.combo);
   useEffect(() => {
@@ -486,6 +500,37 @@ export default function App() {
               {Array.from({ length: 12 }, (_, i) => (
                 <div key={i} className={`particle p${i}`} />
               ))}
+            </div>
+          )}
+
+          {/* Placement sparkle — every block landing */}
+          {showSparkle && (
+            <div className="placement-sparkle" key={`sparkle-${sparkleKeyRef.current}`} aria-hidden="true">
+              {Array.from({ length: 8 }, (_, i) => {
+                const angle = (i / 8) * Math.PI * 2;
+                const dist = 25 + (i % 3) * 12;
+                const dx = Math.cos(angle) * dist;
+                const dy = Math.sin(angle) * dist;
+                const colors = ['#00e5ff', '#00e676', '#ffea00', '#4d8aff'];
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      position: 'absolute',
+                      width: 4,
+                      height: 4,
+                      borderRadius: '50%',
+                      top: '50%',
+                      left: '50%',
+                      background: colors[i % colors.length],
+                      willChange: 'transform, opacity',
+                      animation: `sparkleBurst 0.5s ease-out ${i * 0.03}s forwards`,
+                      '--tx': `${dx}px`,
+                      '--ty': `${dy}px`,
+                    } as React.CSSProperties}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
