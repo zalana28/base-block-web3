@@ -2,59 +2,57 @@ import { useReadContract } from 'wagmi';
 import { base } from '../config/chain.js';
 import { GAME_CONTRACT_ADDRESS, GAME_CONTRACT_ABI } from '../config/contract.js';
 
-interface OnChainEntry {
-  player: string;
-  name: string;
-  mode: number;
-  score: bigint;
-  level: number;
-  timestamp: bigint;
-}
-
 interface Entry {
-  name: string;
+  player: string;
   score: number;
   level: number;
+  mode: number;
+  timestamp: number;
 }
-
-function isValidEntry(e: unknown): e is OnChainEntry {
-  if (!e || typeof e !== 'object') return false;
-  const obj = e as Record<string, unknown>;
-  return (
-    typeof obj.player === 'string' &&
-    typeof obj.mode === 'number' &&
-    (typeof obj.score === 'bigint' || typeof obj.score === 'number') &&
-    typeof obj.level === 'number'
-  );
-}
-
-const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
-  const { data: topScores } = useReadContract({
+  // Read top scores via getTopScores — only works if contract has it
+  // Fallback: we'll read from events
+  const { data: topScores, isLoading, error } = useReadContract({
     address: GAME_CONTRACT_ADDRESS,
     abi: GAME_CONTRACT_ABI,
     functionName: 'getTopScores',
     args: [10],
     chainId: base.id,
-    query: { staleTime: 60_000 },
-  }) as { data: OnChainEntry[] | undefined };
+    query: {
+      staleTime: 60_000,
+      retry: 1,
+    },
+  }) as { data: unknown[] | undefined; isLoading: boolean; error: Error | null };
 
+  const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+
+  // Try to parse getTopScores result (if contract has it)
   const entries: Entry[] = (() => {
     if (!topScores || !Array.isArray(topScores)) return [];
     return topScores
-      .filter(isValidEntry)
-      .filter((e) => e.player !== ZERO_ADDR && e.score > 0n)
+      .filter((e): e is Record<string, unknown> => {
+        if (!e || typeof e !== 'object') return false;
+        const obj = e as Record<string, unknown>;
+        return (
+          typeof obj.player === 'string' &&
+          obj.player !== ZERO_ADDR &&
+          (typeof obj.score === 'bigint' || typeof obj.score === 'number') &&
+          Number(obj.score) > 0
+        );
+      })
       .map((e) => ({
-        name: e.name || e.player.slice(0, 8) + '...',
+        player: e.player as string,
         score: Number(e.score),
-        level: e.level,
+        level: Number(e.level ?? 0),
+        mode: Number(e.mode ?? 0),
+        timestamp: Number(e.timestamp ?? 0),
       }))
-      .sort((a, b) => {
-        if (b.level !== a.level) return b.level - a.level;
-        return b.score - a.score;
-      });
+      .sort((a, b) => b.score - a.score);
   })();
+
+  // Check if getTopScores failed (contract doesn't have this function)
+  const hasReadError = !!error || (!isLoading && entries.length === 0);
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
@@ -67,16 +65,46 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
         <h2>🏆 ON BASE NETWORK</h2>
 
         <div className="leaderboard-list">
-          {entries.length === 0 && (
+          {isLoading && (
+            <p className="leaderboard-empty">Loading scores...</p>
+          )}
+          {hasReadError && !isLoading && (
+            <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+              <p className="leaderboard-empty" style={{ marginBottom: '0.5rem' }}>
+                ⚠️ Could not read leaderboard from contract
+              </p>
+              <p style={{ fontSize: '0.5rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                The deployed contract may not have the getTopScores function.
+                <br />
+                Scores are still saved on-chain via GameCompleted events.
+                <br />
+                Check transactions on{' '}
+                <a
+                  href={`https://basescan.org/address/${GAME_CONTRACT_ADDRESS}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--base-cyan)' }}
+                >
+                  BaseScan
+                </a>
+              </p>
+            </div>
+          )}
+          {!isLoading && entries.length === 0 && !hasReadError && (
             <p className="leaderboard-empty">No scores yet. Be the first!</p>
           )}
           {entries.map((entry, i) => (
-            <div key={`${entry.name}-${i}`} className="leaderboard-row">
+            <div key={`${entry.player}-${i}`} className="leaderboard-row">
               <span className="leaderboard-rank">#{i + 1}</span>
-              <span className="leaderboard-name">{entry.name}</span>
+              <span className="leaderboard-name">
+                {entry.player.slice(0, 6)}...{entry.player.slice(-4)}
+              </span>
               <span className="leaderboard-score">{entry.score.toLocaleString()}</span>
               {entry.level > 0 && (
                 <span className="leaderboard-level">LV{entry.level}</span>
+              )}
+              {entry.mode === 1 && (
+                <span className="leaderboard-level" style={{ color: 'var(--block-orange)' }}>ARC</span>
               )}
             </div>
           ))}
