@@ -47,12 +47,27 @@
   --bg2: #0f1729;
 }
 
+/* === MOBILE & TOUCH OPTIMIZATIONS === */
+html, body {
+  overscroll-behavior: none;       /* Cegah pull-to-refresh */
+  touch-action: manipulation;      /* Hilangkan tap delay 300ms */
+  -webkit-text-size-adjust: 100%;
+}
+
+.game-board, .block-tray {
+  touch-action: none;              /* Kontrol drag penuh tanpa gangguan scroll default */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* === BLOCK TILES — GPU accelerated === */
-.block, .game-piece, [class*="block"] {
+.block, .game-piece, [class*="block"], .floating-piece {
   transition: transform 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   will-change: transform;
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0) translateZ(0); /* Force GPU layers */
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -140,6 +155,11 @@
   100% { transform: scale(1); }
 }
 .score-bump { animation: scoreBump 0.3s ease-out; }
+
+/* Optimasi blur di HP kelas menengah */
+@media (max-width: 768px) {
+  .backdrop-blur-md { backdrop-filter: blur(6px) !important; }
+}
 
 /* Focus-visible for keyboard accessibility */
 :focus-visible {
