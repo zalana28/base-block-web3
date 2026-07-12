@@ -5,7 +5,6 @@ import { base } from "./chain.js";
 import { GAME_CONTRACT_ADDRESS } from "./contract.js";
 
 export const LEADERBOARD_ADDRESS = GAME_CONTRACT_ADDRESS;
-
 export const DATA_SUFFIX = Attribution.toDataSuffix({ codes: ["bc_rhgm3bxx"] });
 
 export const wagmiConfig = createConfig({
@@ -13,7 +12,7 @@ export const wagmiConfig = createConfig({
   connectors: [
     coinbaseWallet({
       appName: "Base Block",
-      preference: "smartWalletOnly",
+      preference: "all", // "all" mendukung Smart Wallet secara native tanpa memicu fallback 'wallet_connect' yang tidak didukung
     }),
     injected({ shimDisconnect: true }),
   ],
