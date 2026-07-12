@@ -3,7 +3,14 @@ import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { canPlaceAnyOfPieces } from "./lib/game/validator.js";
 import { useGameState } from "./hooks/useGameState.js";
-import { sfxPlace, sfxClear, sfxCombo, sfxGameOver, sfxSelect, setMuted } from "./lib/audio.js";
+import {
+  sfxPlace,
+  sfxClear,
+  sfxCombo,
+  sfxGameOver,
+  sfxSelect,
+  setMuted
+} from "./lib/audio.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
@@ -11,6 +18,8 @@ import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
+import ComboEffect from "./components/ComboEffect.js";
+import { haptic } from "./lib/haptics.js";
 
 // Font loading hook
 function useFontReady(): boolean {
@@ -34,604 +43,492 @@ interface DragState {
   piece: BlockPiece | null;
   pos: { x: number; y: number } | null;
   ghost: Position | null;
-  ghostValid: boolean;
+}
+
+export default function App() {
+  const fontReady = useFontReady();
+  const { address, isConnected, startGameOnChain, submitScoreOnChain } = useGameContract();
+  
+  const [phase, setPhase] = useState<AppPhase>("wallet");
+  const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
+  const [shake, setShake] = useState(false);
+  const [scoreBumping, setScoreBumping] = useState(false);
+
+  // Core Game State
+  const {
+    grid,
+    score,
+    combo,
+    highScore,
+    trayPieces,
+    placePiece,
+    clearLines,
+    resetGame,
+    refillTray,
+    setScore,
+    setCombo
+  } = useGameState();
+
+  const [dragState, setDragState] = useState<DragState>({
+    piece: null,
+    pos: null,
+    ghost: null
+  });
+
+  const [txPending, setTxPending] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Sync wallet state with game phases
+  useEffect(() => {
+    if (!isConnected) {
+      setPhase("wallet");
+    } else if (phase === "wallet") {
+      setPhase("playing");
+    }
+  }, [isConnected]);
+
+  // Audio settings sync
+  useEffect(() => {
+    setMuted(!soundEnabled);
+  }, [soundEnabled]);
+
+  // Handle Game Over Check
+  useEffect(() => {
+    if (phase !== "playing") return;
+
+    const activePieces = trayPieces.filter(p => !p.placed);
+    if (activePieces.length > 0) {
+      const hasMoves = canPlaceAnyOfPieces(grid, activePieces.map(p => p.piece));
+      if (!hasMoves) {
+        sfxGameOver();
+        haptic.gameOver();
+        setPhase("over");
+        setGameOverReason('no-moves');
+        handleGameOverSubmission();
+      }
+    }
+  }, [grid, trayPieces, phase]);
+
+  const handleGameOverSubmission = async () => {
+    if (score > 0) {
+      try {
+        setTxPending(true);
+        await submitScoreOnChain(BigInt(score));
+      } catch (err) {
+        console.error("Failed to submit score:", err);
+      } finally {
+        setTxPending(false);
+      }
+    }
+  };
+
+  const handleStartGame = async () => {
+    try {
+      setTxPending(true);
+      await startGameOnChain();
+      resetGame();
+      setPhase("playing");
+    } catch (err) {
+      console.error("Failed to start game:", err);
+      // Fallback start offline if tx fails/rejected
+      resetGame();
+      setPhase("playing");
+    } finally {
+      setTxPending(false);
+    }
+  };
+
+  const handleDragStart = useCallback((piece: BlockPiece, clientX: number, clientY: number) => {
+    sfxSelect();
+    setDragState({
+      piece,
+      pos: { x: clientX, y: clientY },
+      ghost: null
+    });
+  }, []);
+
+  const handleDragMove = useCallback((clientX: number, clientY: number, gridX: number | null, gridY: number | null) => {
+    if (!dragState.piece) return;
+
+    let ghost: Position | null = null;
+    if (gridX !== null && gridY !== null) {
+      const canBePlaced = canPlace(grid, dragState.piece, gridX, gridY);
+      if (canBePlaced) {
+        ghost = { x: gridX, y: gridY };
+      }
+    }
+
+    setDragState(prev => ({
+      ...prev,
+      pos: { x: clientX, y: clientY },
+      ghost
+    }));
+  }, [dragState.piece, grid]);
+
+  const handleDragEnd = useCallback((trayIndex: number) => {
+    const { piece, ghost } = dragState;
+    if (piece && ghost) {
+      // 1. Place piece
+      placePiece(ghost.x, ghost.y, piece, trayIndex);
+      sfxPlace();
+      haptic.place();
+
+      // 2. Clear lines & count combos
+      const cleared = clearLines();
+      if (cleared > 0) {
+        sfxClear();
+        haptic.clear();
+        setScoreBumping(true);
+        setTimeout(() => setScoreBumping(false), 300);
+
+        const newCombo = combo + 1;
+        setCombo(newCombo);
+        
+        if (newCombo >= 2) {
+          sfxCombo();
+          haptic.combo(newCombo);
+          setShake(true);
+          setTimeout(() => setShake(false), 300);
+        }
+      } else {
+        setCombo(0);
+      }
+
+      // 3. Auto refill tray if all used
+      const remaining = trayPieces.filter((p, idx) => idx !== trayIndex ? !p.placed : false);
+      if (remaining.length === 0) {
+        refillTray();
+      }
+    }
+
+    setDragState({ piece: null, pos: null, ghost: null });
+  }, [dragState, placePiece, clearLines, trayPieces, refillTray, combo, setCombo]);
+
+  if (!fontReady) {
+    return (
+      <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
+        <div className="text-cyan-400 font-mono text-xl animate-pulse">
+          LOADING SYSTEM...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen bg-[#030712] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black ${shake ? 'shake' : ''}`}>
+      {/* Background Matrix/Grid effect */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0)_95%,rgba(6,182,212,0.05)_95%),linear-gradient(to_right,rgba(0,0,0,0)_95%,rgba(6,182,212,0.05)_95%)] bg-[size:30px_30px] pointer-events-none" />
+
+      {/* Header */}
+      <header className="relative z-10 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <span className="font-black text-black text-lg">B</span>
+          </div>
+          <div>
+            <h1 className="font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 text-lg leading-none">
+              BASE BLOCK
+            </h1>
+            <span className="text-[10px] font-mono text-cyan-500/80 tracking-widest uppercase">
+              Web3 Edition
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="p-2 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400 hover:text-white transition-colors"
+            title={soundEnabled ? "Mute Sound" : "Unmute Sound"}
+          >
+            {soundEnabled ? "🔊" : "🔇"}
+          </button>
+          <WalletGate />
+        </div>
+      </header>
+
+      {/* Main Layout */}
+      <main className="flex-1 flex flex-col md:flex-row items-center justify-center gap-6 p-4 max-w-6xl mx-auto w-full relative z-10">
+        
+        {phase === "wallet" ? (
+          <div className="text-center py-12 px-6 max-w-md bg-slate-950/60 border border-slate-800 rounded-2xl backdrop-blur-md">
+            <h2 className="text-2xl font-black mb-2 text-cyan-400">CONNECT WALLET TO PLAY</h2>
+            <p className="text-slate-400 mb-6 text-sm">
+              Please connect your Coinbase or Web3 wallet to start scoring blocks and claiming onchain achievements on Base.
+            </p>
+            <div className="flex justify-center">
+              <WalletGate />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Left side: Game and Controls */}
+            <div className="flex flex-col items-center gap-6 w-full max-w-[420px]">
+              <ScoreBoard score={score} highScore={highScore} isBumping={scoreBumping} />
+
+              <GameBoard
+                grid={grid}
+                dragState={dragState}
+                onDragMove={handleDragMove}
+              />
+
+              <BlockTray
+                trayPieces={trayPieces}
+                dragState={dragState}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              />
+            </div>
+
+            {/* Right side: Leaderboard / Live Stats */}
+            <div className="w-full md:w-80 h-[500px] bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col backdrop-blur-md">
+              <Leaderboard />
+            </div>
+          </>
+        )}
+      </main>import { useState, useRef, useCallback, useEffect } from "react";
+import type { BlockPiece, Position } from "./lib/game/types.js";
+import { canPlace } from "./lib/game/grid.js";
+import { canPlaceAnyOfPieces } from "./lib/game/validator.js";
+import { useGameState } from "./hooks/useGameState.js";
+import {
+  sfxPlace,
+  sfxClear,
+  sfxCombo,
+  sfxGameOver,
+  sfxSelect,
+  setMuted
+} from "./lib/audio.js";
+import { useGameContract } from "./hooks/useGameContract.js";
+import GameBoard from "./components/GameBoard.js";
+import BlockTray from "./components/BlockTray.js";
+import ScoreBoard from "./components/ScoreBoard.js";
+import GameOverModal from "./components/GameOverModal.js";
+import WalletGate from "./components/WalletGate.js";
+import Leaderboard from "./components/Leaderboard.js";
+import ComboEffect from "./components/ComboEffect.js";
+import { haptic } from "./lib/haptics.js";
+
+function useFontReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => setReady(true));
+    } else {
+      const t = setTimeout(() => setReady(true), 2000);
+      return () => clearTimeout(t);
+    }
+  }, []);
+  return ready;
+}
+
+type AppPhase = "wallet" | "playing" | "over";
+type GameOverReason = 'no-moves' | 'time-up';
+
+interface DragState {
+  piece: BlockPiece | null;
+  pos: { x: number; y: number } | null;
+  ghost: Position | null;
 }
 
 export default function App() {
   const fontReady = useFontReady();
   const [phase, setPhase] = useState<AppPhase>("wallet");
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [scoreSubmitted, setScoreSubmitted] = useState(false);
-  const [gameMode, setGameMode] = useState<0 | 1>(0);
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [shake, setShake] = useState(false);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
-  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
 
-  const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
-  const [manualSubmitted, setManualSubmitted] = useState(false);
+  const {
+    grid,
+    trayPieces,
+    setTrayPieces,
+    placePieceOnGrid,
+    clearCompleteLines,
+    regenerateTrayIfEmpty,
+    resetGame: resetGameState
+  } = useGameState();
+
+  const {
+    isRegistered,
+    isRegistering,
+    registerPlayer,
+    submitScore,
+    txPending
+  } = useGameContract();
 
   const [dragState, setDragState] = useState<DragState>({
     piece: null,
     pos: null,
-    ghost: null,
-    ghostValid: false,
+    ghost: null
   });
 
-  // Refs untuk drag state internal (tidak trigger render)
-  const isDraggingRef = useRef(false);
-  const dragPieceRef = useRef<BlockPiece | null>(null);
-  const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
-  const boardCellSizeRef = useRef(28);
-  const boardRectRef = useRef<DOMRect | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const checkGameOver = useCallback((currentTray: (BlockPiece | null)[]) => {
+    const activePieces = currentTray.filter((p): p is BlockPiece => p !== null);
+    if (activePieces.length === 0) return;
 
-  // Score pop-up state
-  const [scorePopup, setScorePopup] = useState<{ points: number; key: number } | null>(null);
-
-  // Combo visual state
-  const [comboPopup, setComboPopup] = useState<{ combo: number; key: number } | null>(null);
-
-  // Screen shake state
-  const [shaking, setShaking] = useState(false);
-
-  // Game over warning — board pulsing red
-  const [boardWarning, setBoardWarning] = useState(false);
-
-  const [gameState, actions] = useGameState();
-  const boardRef = useRef<HTMLDivElement>(null);
-
-  // Settings menu
-  const [showSettings, setShowSettings] = useState(false);
-  const [soundMuted, setSoundMuted] = useState(false);
-  const settingsRef = useRef<HTMLDivElement>(null);
-
-  // Close settings on outside click
-  useEffect(() => {
-    if (!showSettings) return;
-    function handleClick(e: MouseEvent) {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
-        setShowSettings(false);
-      }
-    }
-    document.addEventListener('pointerdown', handleClick);
-    return () => document.removeEventListener('pointerdown', handleClick);
-  }, [showSettings]);
-
-  const handleQuitGame = useCallback(() => {
-    setShowSettings(false);
-    actions.resetGame();
-    setScoreSubmitted(false);
-    setManualSubmitted(false);
-    txReset();
-    setPhase("wallet");
-  }, [actions, txReset]);
-
-  const handleGameOver = useCallback(() => {
-    setShowSettings(false);
-    actions.endGame();
-  }, [actions]);
-
-  // Score popup trigger — shows EVERY block placement + score change
-  const prevScoreRef = useRef(gameState.score);
-  const prevPlacedLenRef = useRef(0);
-  useEffect(() => {
-    const newPlacement = gameState.lastPlacedCells.length > 0 &&
-      gameState.lastPlacedCells.length !== prevPlacedLenRef.current;
-    const diff = gameState.score - prevScoreRef.current;
-
-    if (gameState.phase === 'playing' && (newPlacement || diff > 0)) {
-      const points = diff > 0 ? diff : 1;
-      setScorePopup({ points, key: Date.now() });
-      // Sound: line clear if clearing, otherwise just placement
-      if (gameState.clearingRows.length > 0 || gameState.clearingCols.length > 0) {
-        sfxClear();
-      }
-      const t = setTimeout(() => setScorePopup(null), 900);
-      prevPlacedLenRef.current = gameState.lastPlacedCells.length;
-      prevScoreRef.current = gameState.score;
-      return () => clearTimeout(t);
-    }
-    prevScoreRef.current = gameState.score;
-    prevPlacedLenRef.current = gameState.lastPlacedCells.length;
-  }, [gameState.score, gameState.phase, gameState.lastPlacedCells]);
-
-  // Placement sparkle trigger — show on every block placement
-  const [showSparkle, setShowSparkle] = useState(false);
-  const sparkleKeyRef = useRef(0);
-  const prevPlacedRef = useRef(gameState.lastPlacedCells);
-  useEffect(() => {
-    if (gameState.lastPlacedCells.length > 0 && gameState.lastPlacedCells !== prevPlacedRef.current) {
-      sparkleKeyRef.current++;
-      setShowSparkle(true);
-      const t = setTimeout(() => setShowSparkle(false), 500);
-      return () => clearTimeout(t);
-    }
-    prevPlacedRef.current = gameState.lastPlacedCells;
-  }, [gameState.lastPlacedCells]);
-
-  // Combo popup trigger
-  const prevComboRef = useRef(gameState.combo);
-  useEffect(() => {
-    if (gameState.combo > prevComboRef.current && gameState.combo >= 2 && gameState.phase === 'playing') {
-      setComboPopup({ combo: gameState.combo, key: Date.now() });
-
-      // Screen shake for big combos
-      if (gameState.combo >= 3) {
-        setShaking(true);
-        sfxCombo(gameState.combo);
-        // Stronger haptic for combos
-        try { navigator.vibrate?.([20, 30, 20]); } catch { /* ignore */ }
-        const t = setTimeout(() => setShaking(false), 300);
-        return () => {
-          clearTimeout(t);
-          setComboPopup(null);
-        };
-      }
-
-      const t = setTimeout(() => setComboPopup(null), 1200);
-      return () => clearTimeout(t);
-    }
-    prevComboRef.current = gameState.combo;
-  }, [gameState.combo, gameState.phase]);
-
-  // Board warning: pulse red when almost no moves left
-  useEffect(() => {
-    if (gameState.phase !== 'playing') {
-      setBoardWarning(false);
-      return;
-    }
-    const visible = gameState.pieces.filter((p): p is BlockPiece => p !== null);
-    if (visible.length === 0) return;
-
-    // Check if any piece can be placed
-    const canPlaceAny = canPlaceAnyOfPieces(gameState.grid, visible);
-    setBoardWarning(!canPlaceAny);
-  }, [gameState.grid, gameState.pieces, gameState.phase]);
-
-  // Ref untuk grid — hindari stale closure di RAF
-  const gridRef = useRef(gameState.grid);
-  useEffect(() => {
-    gridRef.current = gameState.grid;
-  }, [gameState.grid]);
-
-  // Auto-submit score on game over
-  useEffect(() => {
-    if (gameState.phase === "over") {
-      setPhase("over");
+    const hasMoves = canPlaceAnyOfPieces(grid, activePieces);
+    if (!hasMoves) {
       sfxGameOver();
-      if (gameState.timeLeft <= 0 && gameState.mode === 1) {
-        setGameOverReason('time-up');
-      } else {
-        setGameOverReason('no-moves');
-      }
-      if (!scoreSubmitted && gameState.score > 0) {
-        submitScore(gameMode, gameState.score, gameState.level);
-        setScoreSubmitted(true);
-      }
-    }
-  }, [gameState.phase, gameState.score, gameState.level, gameState.timeLeft, gameState.mode, scoreSubmitted, submitScore, gameMode]);
-
-  // Invalidate cached board rect on resize biar cell size tetap akurat
-  useEffect(() => {
-    function onResize() {
-      boardRectRef.current = null;
-      boardCellSizeRef.current = 28;
-    }
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  // Cleanup RAF on unmount
-  useEffect(() => {
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleSelectPiece = useCallback((pieceId: string | null) => {
-    setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
-    sfxSelect();
-  }, []);
-
-  const handleBoardTap = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (selectedPieceId == null || !boardRef.current) return;
-      const piece = gameState.pieces.find((p): p is BlockPiece => p !== null && p.id === selectedPieceId);
-      if (!piece) return;
-
-      let rect = boardRectRef.current;
-      if (!rect) {
-        rect = boardRef.current.getBoundingClientRect();
-        boardRectRef.current = rect;
-        boardCellSizeRef.current = rect.width / 8;
-      }
-      const cellSize = boardCellSizeRef.current;
-      const clientX = e.clientX;
-      const clientY = e.clientY;
-
-      const anchorRow = Math.floor((piece.shape.length - 1) / 2);
-      const anchorCol = Math.floor(((piece.shape[0]?.length ?? 1) - 1) / 2);
-
-      const col = Math.floor((clientX - rect.left) / cellSize) - anchorCol;
-      const row = Math.floor((clientY - rect.top) / cellSize) - anchorRow;
-      const pos = { row, col };
-
-      if (canPlace(gridRef.current, piece.shape, pos)) {
-        actions.placePiece(piece, pos);
-        setSelectedPieceId(null);
-        sfxPlace();
-        // Haptic feedback on mobile
-        try { navigator.vibrate?.(15); } catch { /* ignore */ }
-      }
-    },
-    [selectedPieceId, gameState.pieces, actions],
-  );
-
-  const handleDragStart = useCallback(
-    (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
-      setSelectedPieceId(null);
-
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-
-      if (boardRef.current) {
-        const rect = boardRef.current.getBoundingClientRect();
-        boardCellSizeRef.current = rect.width / 8;
-        boardRectRef.current = rect;
-      }
-      isDraggingRef.current = true;
-      dragPieceRef.current = piece;
-      grabOffsetRef.current = { row: anchorRow, col: anchorCol };
-      const cellSize = boardCellSizeRef.current;
-      const grab = grabOffsetRef.current;
-      // Position: top-left corner of the floating piece
-      // Floating piece uses left:0,top:0 + transform:translate3d, so we compute
-      // the raw x,y that represents the piece's top-left offset from viewport origin
-      setDragState({
-        piece,
-        pos: {
-          x: clientX - grab.col * cellSize - cellSize / 2,
-          y: clientY - grab.row * cellSize - cellSize / 2,
-        },
-        ghost: null,
-        ghostValid: false,
+      haptic.gameOver();
+      setGameOverReason('no-moves');
+      setPhase("over");
+      submitScore(score).catch((err) => {
+        console.error("Failed to auto-submit score:", err);
       });
-    },
-    [],
-  );
+    }
+  }, [grid, score, submitScore]);
 
-  const handleDragMove = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
+  const handleDragStart = useCallback((piece: BlockPiece, clientX: number, clientY: number) => {
+    sfxSelect();
+    setDragState({
+      piece,
+      pos: { x: clientX, y: clientY },
+      ghost: null
+    });
+  }, []);
 
-      const piece = dragPieceRef.current;
-      const grab = grabOffsetRef.current;
-      const rect = boardRectRef.current;
-      const cellSize = boardCellSizeRef.current;
+  const handleDragEnd = useCallback((gridX: number, gridY: number) => {
+    const { piece } = dragState;
+    if (!piece) return;
 
-      const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
-      const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
-      const pos = { row, col };
+    if (gridX >= 0 && gridX < 10 && gridY >= 0 && gridY < 10 && canPlace(grid, piece, gridX, gridY)) {
+      placePieceOnGrid(piece, gridX, gridY);
+      sfxPlace();
+      haptic.place();
 
-      const dragPos = {
-        x: clientX - grab.col * cellSize - cellSize / 2,
-        y: clientY - grab.row * cellSize - cellSize / 2,
-      };
+      const linesCleared = clearCompleteLines();
+      let nextScore = score + (piece.shape.filter(row => row.filter(Boolean).length > 0).length * 10);
 
-      const isValid = canPlace(gridRef.current, piece.shape, pos);
-
-      setDragState((prev) => ({
-        ...prev,
-        pos: dragPos,
-        ghost: pos,
-        ghostValid: isValid,
-      }));
-    },
-    [],
-  );
-
-  const handleDragEnd = useCallback(
-    (clientX: number, clientY: number) => {
-      const wasDragging = isDraggingRef.current;
-      const piece = dragPieceRef.current;
-      const grab = grabOffsetRef.current;
-
-      isDraggingRef.current = false;
-      dragPieceRef.current = null;
-      grabOffsetRef.current = { row: 0, col: 0 };
-
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-
-      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
-
-      if (wasDragging && piece) {
-        let rect = boardRectRef.current;
-        if (!rect) {
-          if (boardRef.current) {
-            rect = boardRef.current.getBoundingClientRect();
-            boardRectRef.current = rect;
-          } else {
-            return;
-          }
+      if (linesCleared > 0) {
+        sfxClear();
+        haptic.clear();
+        const nextCombo = combo + 1;
+        setCombo(nextCombo);
+        
+        if (nextCombo >= 2) {
+          sfxCombo();
+          haptic.combo(nextCombo);
+          setShake(true);
+          setTimeout(() => setShake(false), 300);
         }
 
-        const cellSize = boardCellSizeRef.current;
-        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
-        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
-        const pos = { row, col };
-
-        if (canPlace(gridRef.current, piece.shape, pos)) {
-          actions.placePiece(piece, pos);
-          sfxPlace();
-          // Haptic feedback on mobile
-          try { navigator.vibrate?.(15); } catch { /* ignore */ }
-        }
+        const comboBonus = linesCleared * 100 * nextCombo;
+        nextScore += comboBonus;
+      } else {
+        setCombo(0);
       }
-    },
-    [actions],
-  );
 
-  const handleStartGame = useCallback((mode: 0 | 1) => {
-    setGameMode(mode);
-    actions.startGame(mode);
+      setScore(nextScore);
+
+      const updatedTray = trayPieces.map(p => p?.id === piece.id ? null : p);
+      setTrayPieces(updatedTray);
+
+      const nextTray = regenerateTrayIfEmpty(updatedTray);
+      checkGameOver(nextTray);
+    }
+
+    setDragState({ piece: null, pos: null, ghost: null });
+  }, [dragState, grid, score, combo, trayPieces, placePieceOnGrid, clearCompleteLines, setTrayPieces, regenerateTrayIfEmpty, checkGameOver]);
+
+  const handleStartGame = useCallback(() => {
+    resetGameState();
+    setScore(0);
+    setCombo(0);
     setPhase("playing");
-  }, [actions]);
+  }, [resetGameState]);
 
-  const handleManualSubmit = useCallback(() => {
-    if (gameState.score === 0) return;
-    txReset();
-    submitScore(gameState.mode, gameState.score, gameState.level);
-    setManualSubmitted(true);
-  }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level]);
-
-  const handlePlayAgain = useCallback(() => {
-    actions.resetGame();
-    setScoreSubmitted(false);
-    setManualSubmitted(false);
-    txReset();
-    setGameOverReason('no-moves');
-    setPhase("wallet");
-  }, [actions, txReset]);
-
-  const ambientBackground = (
-    <>
-      <div className="ambient-grid" aria-hidden="true" />
-      <div className="vignette" aria-hidden="true" />
-      <div className="floating-blocks" aria-hidden="true">
-        <div className="float-block cyan" />
-        <div className="float-block blue" />
-        <div className="float-block green" />
-        <div className="float-block purple" />
-        <div className="float-block tiny" />
-      </div>
-    </>
-  );
+  const toggleMute = useCallback(() => {
+    const nextMuted = !isAudioMuted;
+    setIsAudioMuted(nextMuted);
+    setMuted(nextMuted);
+  }, [isAudioMuted]);
 
   if (!fontReady) {
     return (
-      <div className="loading-screen">
-        <div className="loading-spinner" />
-        <div className="loading-text">LOADING...</div>
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-cyan-400 font-mono">
+        <div className="text-center">
+          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent mx-auto"></div>
+          <p className="text-sm tracking-widest animate-pulse">LOADING CODES...</p>
+        </div>
       </div>
-    );
-  }
-
-  if (showLeaderboard) {
-    return (
-      <>
-        {ambientBackground}
-        <Leaderboard onClose={() => setShowLeaderboard(false)} />
-      </>
     );
   }
 
   if (phase === "wallet") {
     return (
-      <>
-        {ambientBackground}
-        <WalletGate
-          onReady={handleStartGame}
-          onViewLeaderboard={() => setShowLeaderboard(true)}
-        />
-      </>
-    );
-  }
-
-  if (phase === "over") {
-    return (
-      <>
-        {ambientBackground}
-        <GameOverModal
-          score={gameState.score}
-          bestScore={gameState.bestScore}
-          mode={gameState.mode}
-          level={gameState.level}
-          combo={gameState.maxCombo}
-          totalCleared={gameState.totalCleared}
-          totalMoves={gameState.totalMoves}
-          reason={gameOverReason}
-          onPlayAgain={handlePlayAgain}
-          onViewLeaderboard={() => setShowLeaderboard(true)}
-        />
-      </>
+      <WalletGate
+        onStartGame={handleStartGame}
+        isRegistered={isRegistered}
+        isRegistering={isRegistering}
+        onRegister={registerPlayer}
+      />
     );
   }
 
   return (
-    <>
-      {ambientBackground}
-      <div className={`game-screen${shaking ? ' shake' : ''}${boardWarning ? ' board-warning' : ''}`}>
-        <div className="game-header">
-          <div className="game-header-row">
-            <div>
-              <div className="game-header-title">BASE BLOCK</div>
-              <div className="game-header-subtitle">
-                {gameState.mode === 0 ? 'CLASSIC' : `ARCADE — LVL ${gameState.level}`}
-              </div>
-            </div>
-            <div className="settings-wrap" ref={settingsRef}>
-              <button
-                className="settings-btn"
-                onClick={() => setShowSettings(s => !s)}
-                aria-label="Settings"
-                aria-expanded={showSettings}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              </button>
-              {showSettings && (
-                <div className="settings-menu" role="menu">
-                  <button className="settings-item" onClick={() => {
-                    const next = !soundMuted;
-                    setSoundMuted(next);
-                    setMuted(next);
-                  }}>
-                    {soundMuted ? '🔇 Sound: OFF' : '🔊 Sound: ON'}
-                  </button>
-                  <button className="settings-item" onClick={() => { setShowSettings(false); setShowLeaderboard(true); }}>
-                    🏆 Leaderboard
-                  </button>
-                  {gameState.mode === 0 && gameState.score > 0 && (
-                    <button className="settings-item" onClick={() => { setShowSettings(false); handleManualSubmit(); }}>
-                      📤 Submit Score
-                    </button>
-                  )}
-                  <button className="settings-item danger" onClick={handleGameOver}>
-                    🏳️ End Game
-                  </button>
-                  <button className="settings-item danger" onClick={handleQuitGame}>
-                    🚪 Quit to Menu
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <ScoreBoard
-          score={gameState.score}
-          bestScore={gameState.bestScore}
-          combo={gameState.combo}
-          streak={gameState.streak}
-          mode={gameState.mode}
-          level={gameState.level}
-          targetScore={gameState.targetScore}
-          timeLeft={gameState.timeLeft}
-        />
-
-        <div className="board-wrapper" style={{ position: 'relative' }}>
-          <GameBoard
-            grid={gameState.grid}
-            ghostPiece={dragState.piece}
-            ghostPos={dragState.ghost}
-            isGhostValid={dragState.ghostValid}
-            clearingRows={gameState.clearingRows}
-            clearingCols={gameState.clearingCols}
-            lastPlacedCells={gameState.lastPlacedCells}
-            boardRef={boardRef}
-            onPointerDown={handleBoardTap}
+    <main className={`relative flex min-h-screen w-screen flex-col items-center justify-center bg-slate-950 px-4 py-6 md:py-12 select-none overflow-x-hidden ${shake ? 'shake' : ''}`}>
+      <div className="relative flex w-full max-w-5xl flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
+        
+        {/* Left/Middle side: Game Area */}
+        <div className="flex flex-col items-center gap-6">
+          <ScoreBoard
+            score={score}
+            isMuted={isAudioMuted}
+            onToggleMute={toggleMute}
           />
 
-          {scorePopup && (
-            <div key={scorePopup.key} className="score-popup">
-              +{scorePopup.points.toLocaleString()}
-            </div>
-          )}
+          <GameBoard
+            grid={grid}
+            dragState={dragState}
+            setDragState={setDragState}
+            onDragEnd={handleDragEnd}
+          />
 
-          {comboPopup && (
-            <div key={comboPopup.key} className={`combo-popup combo-${Math.min(comboPopup.combo, 5)}`}>
-              {comboPopup.combo}x COMBO!
-            </div>
-          )}
-
-          {/* Particle burst on line clear */}
-          {gameState.clearingRows.length > 0 && (
-            <div className="particle-burst" aria-hidden="true">
-              {Array.from({ length: 12 }, (_, i) => (
-                <div key={i} className={`particle p${i}`} />
-              ))}
-            </div>
-          )}
-
-          {/* Placement sparkle — every block landing */}
-          {showSparkle && (
-            <div className="placement-sparkle" key={`sparkle-${sparkleKeyRef.current}`} aria-hidden="true">
-              {Array.from({ length: 8 }, (_, i) => {
-                const angle = (i / 8) * Math.PI * 2;
-                const dist = 25 + (i % 3) * 12;
-                const dx = Math.cos(angle) * dist;
-                const dy = Math.sin(angle) * dist;
-                const colors = ['#00e5ff', '#00e676', '#ffea00', '#4d8aff'];
-                const sparkSize = Math.max(4, Math.min(7, Math.round(window.innerWidth / 80)));
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      position: 'absolute',
-                      width: sparkSize,
-                      height: sparkSize,
-                      borderRadius: '50%',
-                      top: '50%',
-                      left: '50%',
-                      background: colors[i % colors.length],
-                      willChange: 'transform, opacity',
-                      animation: `sparkleBurst 0.5s ease-out ${i * 0.03}s forwards`,
-                      '--tx': `${dx}px`,
-                      '--ty': `${dy}px`,
-                    } as React.CSSProperties}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <BlockTray
+            trayPieces={trayPieces}
+            dragState={dragState}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          />
         </div>
 
-        {gameState.mode === 0 && (
-          <div className="submit-score-section">
-            <button
-              className="primary submit-score-btn"
-              onClick={handleManualSubmit}
-              disabled={
-                txStatus === 'pending' ||
-                txStatus === 'confirming' ||
-                gameState.score === 0
-              }
-            >
-              {gameState.score === 0
-                ? '🚫 SCORE 0 — MAIN DULU'
-                : txStatus === 'pending' || txStatus === 'confirming'
-                  ? '⏳ SUBMITTING...'
-                  : txStatus === 'success' || manualSubmitted
-                    ? '✅ SCORE SUBMITTED'
-                    : '📤 SUBMIT SCORE'}
-            </button>
-            {txStatus === 'error' && txError && (
-              <span className="submit-score-error">{txError.message}</span>
-            )}
-          </div>
-        )}
-
-        <BlockTray
-          pieces={gameState.pieces}
-          draggedPieceId={dragState.piece?.id ?? null}
-          selectedPieceId={selectedPieceId}
-          dragPos={dragState.pos}
-          cellSize={boardCellSizeRef.current}
-          onDragStart={handleDragStart}
-          onDragMove={handleDragMove}
-          onDragEnd={handleDragEnd}
-          onSelectPiece={handleSelectPiece}
-        />
+        {/* Right side: Leaderboard */}
+        <div className="w-full md:w-80 h-[500px] bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col backdrop-blur-md">
+          <Leaderboard />
+        </div>
       </div>
-    </>
+
+      {/* Overlays / Modals */}
+      {phase === "over" && (
+        <GameOverModal
+          score={score}
+          reason={gameOverReason}
+          txPending={txPending}
+          onRestart={handleStartGame}
+        />
+      )}
+
+      {/* Floating Combo Alerts */}
+      <ComboEffect combo={combo} />
+    </main>
+  );
+}
+
+
+      {/* Overlays / Modals */}
+      {phase === "over" && (
+        <GameOverModal
+          score={score}
+          reason={gameOverReason}
+          txPending={txPending}
+          onRestart={handleStartGame}
+        />
+      )}
+
+      {/* Floating Combo Alerts */}
+      <ComboEffect combo={combo} />
+    </div>
   );
 }
