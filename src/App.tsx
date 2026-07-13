@@ -1,16 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { BlockPiece, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
-import { canPlaceAnyOfPieces } from "./lib/game/validator.js";
 import { useGameState } from "./hooks/useGameState.js";
-import {
-  sfxPlace,
-  sfxClear,
-  sfxCombo,
-  sfxGameOver,
-  sfxSelect,
-  setMuted
-} from "./lib/audio.js";
 import { useGameContract } from "./hooks/useGameContract.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
@@ -18,296 +9,439 @@ import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
-import ComboEffect from "./components/ComboEffect.js";
-import { haptic } from "./lib/haptics.js";
-
-// Font loading hook
-function useFontReady(): boolean {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    if (document.fonts?.ready) {
-      document.fonts.ready.then(() => setReady(true));
-    } else {
-      // Fallback: assume ready after 2s
-      const t = setTimeout(() => setReady(true), 2000);
-      return () => clearTimeout(t);
-    }
-  }, []);
-  return ready;
-}
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
 
-interface DragState {
-  piece: BlockPiece | null;
-  pos: { x: number; y: number } | null;
-  ghost: Position | null;
-}
-
 export default function App() {
-  const fontReady = useFontReady();
-  const { address, isConnected } = useAccount();
-  const { startGame, submitScore, status: contractStatus, error: contractError } = useGameContract();
-  
   const [phase, setPhase] = useState<AppPhase>("wallet");
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [gameMode, setGameMode] = useState<0 | 1>(0);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
-  const [shake, setShake] = useState(false);
-  const [scoreBumping, setScoreBumping] = useState(false);
+  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
-  // Core Game State
-  const {
-    grid,
-    score,
-    combo,
-    highScore,
-    trayPieces,
-    placePiece,
-    clearLines,
-    resetGame,
-    refillTray,
-    setScore,
-    setCombo
-  } = useGameState();
+  const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
+  const [manualSubmitted, setManualSubmitted] = useState(false);
 
+  // Drag state — batched dalam satu object untuk hindari re-render cascade
+  interface DragState {
+    piece: BlockPiece | null;
+    pos: { x: number; y: number } | null;
+    ghost: Position | null;
+    ghostValid: boolean;
+  }
   const [dragState, setDragState] = useState<DragState>({
     piece: null,
     pos: null,
-    ghost: null
+    ghost: null,
+    ghostValid: false,
   });
 
-  const [txPending, setTxPending] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  // Refs untuk drag state internal (tidak trigger render)
+  const isDraggingRef = useRef(false);
+  const dragPieceRef = useRef<BlockPiece | null>(null);
+  const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
+  const boardCellSizeRef = useRef(28);
+  const boardRectRef = useRef<DOMRect | null>(null);
+  const rafRef = useRef<number | null>(null);
 
-  // Sync wallet state with game phases
+  // (clearing animation, opsional — bisa di-wire kemudian)
+  const [clearingRows] = useState<number[]>([]);
+  const [clearingCols] = useState<number[]>([]);
+
+  const [gameState, actions] = useGameState();
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  // Ref untuk grid — hindari stale closure di RAF
+  const gridRef = useRef(gameState.grid);
   useEffect(() => {
-    if (!isConnected) {
-      setPhase("wallet");
-    } else if (phase === "wallet") {
-      setPhase("playing");
-    }
-  }, [isConnected]);
+    gridRef.current = gameState.grid;
+  }, [gameState.grid]);
 
-  // Audio settings sync
+  // Auto-submit score on game over
   useEffect(() => {
-    setMuted(!soundEnabled);
-  }, [soundEnabled]);
-
-  // Handle Game Over Check
-  useEffect(() => {
-    if (phase !== "playing") return;
-
-    const activePieces = trayPieces.filter(p => !p.placed);
-    if (activePieces.length > 0) {
-      const hasMoves = canPlaceAnyOfPieces(grid, activePieces.map(p => p.piece));
-      if (!hasMoves) {
-        sfxGameOver();
-        haptic.gameOver();
-        setPhase("over");
+    if (gameState.phase === "over") {
+      setPhase("over");
+      if (gameState.timeLeft <= 0 && gameState.mode === 1) {
+        setGameOverReason('time-up');
+      } else {
         setGameOverReason('no-moves');
-        handleGameOverSubmission();
+      }
+      if (!scoreSubmitted) {
+        submitScore(gameMode, gameState.score, gameState.level);
+        setScoreSubmitted(true);
       }
     }
-  }, [grid, trayPieces, phase]);
+  }, [gameState.phase, gameState.score, gameState.level, gameState.timeLeft, gameState.mode, scoreSubmitted, submitScore, gameMode]);
 
-  const handleGameOverSubmission = async () => {
-    if (score > 0) {
-      try {
-        setTxPending(true);
-        // BaseBlockLeaderboard.sol: submitScore(uint8 mode, uint256 score, uint256 level)
-        // mode: 0 for Classic, 1 for Arcade
-        // level: 1 by default, or use level from useGameState if applicable
-        await submitScore(0, score, 1);
-      } catch (err) {
-        console.error("Failed to submit score:", err);
-      } finally {
-        setTxPending(false);
-      }
+  // Invalidate cached board rect on resize biar cell size tetap akurat
+  useEffect(() => {
+    function onResize() {
+      boardRectRef.current = null;
+      boardCellSizeRef.current = 28;
     }
-  };
-
-  const handleStartGame = async () => {
-    try {
-      setTxPending(true);
-      await startGame(0);
-      resetGame();
-      setPhase("playing");
-    } catch (err) {
-      console.error("Failed to start game:", err);
-      // Fallback start offline if tx fails/rejected
-      resetGame();
-      setPhase("playing");
-    } finally {
-      setTxPending(false);
-    }
-  };
-
-  const handleDragStart = useCallback((piece: BlockPiece, clientX: number, clientY: number) => {
-    sfxSelect();
-    setDragState({
-      piece,
-      pos: { x: clientX, y: clientY },
-      ghost: null
-    });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const handleDragMove = useCallback((clientX: number, clientY: number, gridX: number | null, gridY: number | null) => {
-    if (!dragState.piece) return;
-
-    let ghost: Position | null = null;
-    if (gridX !== null && gridY !== null) {
-      const canBePlaced = canPlace(grid, dragState.piece, gridX, gridY);
-      if (canBePlaced) {
-        ghost = { x: gridX, y: gridY };
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
       }
-    }
+    };
+  }, []);
 
-    setDragState(prev => ({
-      ...prev,
-      pos: { x: clientX, y: clientY },
-      ghost
-    }));
-  }, [dragState.piece, grid]);
+  const handleSelectPiece = useCallback((pieceId: string | null) => {
+    setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
+  }, []);
 
-  const handleDragEnd = useCallback((trayIndex: number) => {
-    const { piece, ghost } = dragState;
-    if (piece && ghost) {
-      // 1. Place piece
-      placePiece(ghost.x, ghost.y, piece, trayIndex);
-      sfxPlace();
-      haptic.place();
+  const handleBoardTap = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isPaused) return;
+      if (selectedPieceId == null || !boardRef.current) return;
+      const piece = gameState.pieces.find((p): p is BlockPiece => p !== null && p.id === selectedPieceId);
+      if (!piece) return;
 
-      // 2. Clear lines & count combos
-      const cleared = clearLines();
-      if (cleared > 0) {
-        sfxClear();
-        haptic.clear();
-        setScoreBumping(true);
-        setTimeout(() => setScoreBumping(false), 300);
+      let rect = boardRectRef.current;
+      if (!rect) {
+        rect = boardRef.current.getBoundingClientRect();
+        boardRectRef.current = rect;
+        boardCellSizeRef.current = rect.width / 8;
+      }
+      const cellSize = boardCellSizeRef.current;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
 
-        const newCombo = combo + 1;
-        setCombo(newCombo);
-        
-        if (newCombo >= 2) {
-          sfxCombo();
-          haptic.combo(newCombo);
-          setShake(true);
-          setTimeout(() => setShake(false), 300);
+      // Anchor at the visual center of the piece's bounding shape
+      const anchorRow = Math.floor((piece.shape.length - 1) / 2);
+      const anchorCol = Math.floor(((piece.shape[0]?.length ?? 1) - 1) / 2);
+
+      const col = Math.floor((clientX - rect.left) / cellSize) - anchorCol;
+      const row = Math.floor((clientY - rect.top) / cellSize) - anchorRow;
+      const pos = { row, col };
+
+      if (canPlace(gridRef.current, piece.shape, pos)) {
+        actions.placePiece(piece, pos);
+        setSelectedPieceId(null);
+      }
+    },
+    [selectedPieceId, gameState.pieces, actions, isPaused],
+  );
+
+  const handleDragStart = useCallback(
+    (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
+      if (isPaused) return;
+      // Clear any tap selection when user starts dragging
+      setSelectedPieceId(null);
+
+      // Cancel any pending RAF from previous drag
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      if (boardRef.current) {
+        const rect = boardRef.current.getBoundingClientRect();
+        boardCellSizeRef.current = rect.width / 8;
+        // FIX: Save rect ke ref biar handleDragMove bisa pakai
+        boardRectRef.current = rect;
+      }
+      isDraggingRef.current = true;
+      dragPieceRef.current = piece;
+      grabOffsetRef.current = { row: anchorRow, col: anchorCol };
+      const cellSize = boardCellSizeRef.current;
+      const grab = grabOffsetRef.current;
+      setDragState({
+        piece,
+        pos: {
+          x: clientX - grab.col * cellSize - cellSize / 2,
+          y: clientY - grab.row * cellSize - cellSize / 2,
+        },
+        ghost: null,
+        ghostValid: false,
+      });
+    },
+    [isPaused],
+  );
+
+  const handleDragMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (isPaused) return;
+      if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
+      
+      // FIX: Direct update tanpa RAF untuk responsiveness maksimal
+      const piece = dragPieceRef.current;
+      const grab = grabOffsetRef.current;
+      const rect = boardRectRef.current;
+      const cellSize = boardCellSizeRef.current;
+
+      const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
+      const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
+      const pos = { row, col };
+
+      const dragPos = {
+        x: clientX - grab.col * cellSize - cellSize / 2,
+        y: clientY - grab.row * cellSize - cellSize / 2,
+      };
+
+      const isValid = canPlace(gridRef.current, piece.shape, pos);
+
+      setDragState((prev) => ({
+        ...prev,
+        pos: dragPos,
+        ghost: pos,
+        ghostValid: isValid,
+      }));
+    },
+    [isPaused],
+  );
+
+
+  const handleDragEnd = useCallback(
+    (clientX: number, clientY: number) => {
+      if (isPaused) return;
+      // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
+      const wasDragging = isDraggingRef.current;
+      const piece = dragPieceRef.current;
+      const grab = grabOffsetRef.current;
+      
+      isDraggingRef.current = false;
+      dragPieceRef.current = null;
+      grabOffsetRef.current = { row: 0, col: 0 };
+      
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      // Clear drag visual immediately
+      setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
+
+      if (wasDragging && piece) {
+        let rect = boardRectRef.current;
+        if (!rect) {
+          // Fallback: recalculate rect kalau null (edge case resize)
+          if (boardRef.current) {
+            rect = boardRef.current.getBoundingClientRect();
+            boardRectRef.current = rect;
+          } else {
+            return;
+          }
         }
-      } else {
-        setCombo(0);
+        
+        const cellSize = boardCellSizeRef.current;
+        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
+        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
+        const pos = { row, col };
+
+        // Pakai gridRef.current untuk consistency
+        if (canPlace(gridRef.current, piece.shape, pos)) {
+          actions.placePiece(piece, pos);
+        }
       }
+    },
+    [actions, isPaused],
+  );
 
-      // 3. Auto refill tray if all used
-      const remaining = trayPieces.filter((p, idx) => idx !== trayIndex ? !p.placed : false);
-      if (remaining.length === 0) {
-        refillTray();
-      }
-    }
 
-    setDragState({ piece: null, pos: null, ghost: null });
-  }, [dragState, placePiece, clearLines, trayPieces, refillTray, combo, setCombo]);
+  const handleStartGame = useCallback((mode: 0 | 1) => {
+    setGameMode(mode);
+    actions.startGame(mode);
+    setPhase("playing");
+    setIsPaused(false);
+    setShowSettings(false);
+  }, [actions]);
 
-  if (!fontReady) {
-    return (
-      <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
-        <div className="text-cyan-400 font-mono text-xl animate-pulse">
-          LOADING SYSTEM...
-        </div>
+  const handleManualSubmit = useCallback(() => {
+    txReset();
+    submitScore(gameState.mode, gameState.score, gameState.level);
+    setManualSubmitted(true);
+  }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level]);
+
+  const handlePlayAgain = useCallback(() => {
+    actions.resetGame();
+    setScoreSubmitted(false);
+    setManualSubmitted(false);
+    txReset();
+    setGameOverReason('no-moves');
+    setPhase("wallet");
+    setIsPaused(false);
+    setShowSettings(false);
+  }, [actions, txReset]);
+
+  const handlePause = useCallback(() => {
+    setIsPaused((p) => !p);
+    setShowSettings(false);
+  }, []);
+
+  const handleExitGame = useCallback(() => {
+    setIsPaused(false);
+    setShowSettings(false);
+    setScoreSubmitted(false);
+    setManualSubmitted(false);
+    txReset();
+    actions.resetGame();
+    setPhase("wallet");
+  }, [actions, txReset]);
+
+  const ambientBackground = (
+    <>
+      <div className="ambient-grid" aria-hidden="true" />
+      <div className="vignette" aria-hidden="true" />
+      <div className="floating-blocks" aria-hidden="true">
+        <div className="float-block cyan" />
+        <div className="float-block blue" />
+        <div className="float-block green" />
+        <div className="float-block purple" />
+        <div className="float-block tiny" />
       </div>
+    </>
+  );
+
+  if (showLeaderboard) {
+    return (
+      <>
+        {ambientBackground}
+        <Leaderboard onClose={() => setShowLeaderboard(false)} />
+      </>
+    );
+  }
+
+  if (phase === "wallet") {
+    return (
+      <>
+        {ambientBackground}
+        <WalletGate
+          onReady={handleStartGame}
+          onViewLeaderboard={() => setShowLeaderboard(true)}
+        />
+      </>
+    );
+  }
+
+  if (phase === "over") {
+    return (
+      <>
+        {ambientBackground}
+        <GameOverModal
+          score={gameState.score}
+          bestScore={gameState.bestScore}
+          mode={gameState.mode}
+          level={gameState.level}
+          reason={gameOverReason}
+          onPlayAgain={handlePlayAgain}
+          onViewLeaderboard={() => setShowLeaderboard(true)}
+        />
+      </>
     );
   }
 
   return (
-    <div className={`min-h-screen bg-[#030712] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black ${shake ? 'shake' : ''}`}>
-      {/* Background Matrix/Grid effect */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0)_95%,rgba(6,182,212,0.05)_95%),linear-gradient(to_right,rgba(0,0,0,0)_95%,rgba(6,182,212,0.05)_95%)] bg-[size:30px_30px] pointer-events-none" />
-
-      {/* Header */}
-      <header className="relative z-10 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <span className="font-black text-black text-lg">B</span>
-          </div>
-          <div>
-            <h1 className="font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 text-lg leading-none">
-              BASE BLOCK
-            </h1>
-            <span className="text-[10px] font-mono text-cyan-500/80 tracking-widest uppercase">
-              Web3 Edition
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400 hover:text-white transition-colors"
-            title={soundEnabled ? "Mute Sound" : "Unmute Sound"}
-          >
-            {soundEnabled ? "🔊" : "🔇"}
-          </button>
-          <WalletGate />
-        </div>
-      </header>
-
-      {/* Main Layout */}
-      <main className="flex-1 flex flex-col md:flex-row items-center justify-center gap-6 p-4 max-w-6xl mx-auto w-full relative z-10">
-        
-        {phase === "wallet" ? (
-          <div className="text-center py-12 px-6 max-w-md bg-slate-950/60 border border-slate-800 rounded-2xl backdrop-blur-md">
-            <h2 className="text-2xl font-black mb-2 text-cyan-400">CONNECT WALLET TO PLAY</h2>
-            <p className="text-slate-400 mb-6 text-sm">
-              Please connect your Coinbase or Web3 wallet to start scoring blocks and claiming onchain achievements on Base.
-            </p>
-            <div className="flex justify-center">
-              <WalletGate />
+    <>
+      {ambientBackground}
+      <div className="game-screen">
+        <div className="game-header">
+          <div className="game-header-row">
+            <div className="game-header-text">
+              <div className="game-header-title">BASE BLOCK</div>
+              <div className="game-header-subtitle">ON BASE NETWORK</div>
+            </div>
+            <div className="game-header-actions">
+              <button
+                className="icon-btn settings-btn"
+                onClick={() => setShowSettings((s) => !s)}
+                aria-label="Settings"
+              >
+                ⚙️
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 w-full h-full max-h-[85vh] overflow-hidden">
-            {/* Left side: Game and Controls */}
-            <div className="flex flex-col items-center justify-between gap-2 w-full max-w-[360px] h-full overflow-hidden py-1">
-              <ScoreBoard score={score} highScore={highScore} isBumping={scoreBumping} />
 
-              <div className="flex-1 flex items-center justify-center w-full min-h-0 max-h-[50vh] aspect-square">
-                <GameBoard
-                  grid={grid}
-                  dragState={dragState}
-                  onDragMove={handleDragMove}
-                />
-              </div>
-
-              <div className="w-full flex justify-center py-1">
-                <BlockTray
-                  trayPieces={trayPieces}
-                  dragState={dragState}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                />
-              </div>
+          {showSettings && (
+            <div className="settings-dropdown">
+              <button className="settings-item" onClick={handlePause}>
+                {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
+              </button>
+              <button className="settings-item exit" onClick={handleExitGame}>
+                🚪 EXIT GAME
+              </button>
             </div>
+          )}
+        </div>
 
-            {/* Right side: Leaderboard / Live Stats */}
-            <div className="hidden md:flex w-80 h-full max-h-[550px] bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex-col backdrop-blur-md overflow-hidden">
-              <Leaderboard />
+        {isPaused && (
+          <div className="pause-overlay" onClick={handlePause}>
+            <div className="pause-content">
+              <div className="pause-icon">⏸️</div>
+              <div className="pause-text">PAUSED</div>
+              <div className="pause-hint">Tap to resume</div>
             </div>
           </div>
         )}
-      </main>
 
-      {/* Overlays / Modals */}
-      {phase === "over" && (
-        <GameOverModal
-          score={score}
-          reason={gameOverReason}
-          txPending={txPending}
-          onRestart={handleStartGame}
+        <ScoreBoard
+          score={gameState.score}
+          bestScore={gameState.bestScore}
+          combo={gameState.combo}
+          streak={gameState.streak}
+          mode={gameState.mode}
+          level={gameState.level}
+          targetScore={gameState.targetScore}
+          timeLeft={gameState.timeLeft}
         />
-      )}
 
-      {/* Floating Combo Alerts */}
-      <ComboEffect combo={combo} />
-    </div>
+        <GameBoard
+          grid={gameState.grid}
+          ghostPiece={dragState.piece}
+          ghostPos={dragState.ghost}
+          isGhostValid={dragState.ghostValid}
+          clearingRows={clearingRows}
+          clearingCols={clearingCols}
+          boardRef={boardRef}
+          onPointerDown={handleBoardTap}
+        />
+
+        {gameState.mode === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+            <button
+              className="primary"
+              onClick={handleManualSubmit}
+              disabled={txStatus === 'pending' || txStatus === 'confirming'}
+              style={{ fontSize: 12, padding: '8px 20px' }}
+            >
+              {txStatus === 'pending' || txStatus === 'confirming'
+                ? '⏳ SUBMITTING...'
+                : txStatus === 'success' || manualSubmitted
+                  ? '✅ SCORE SUBMITTED'
+                  : '📤 SUBMIT SCORE'}
+            </button>
+            {txStatus === 'error' && txError && (
+              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+                {txError.message}
+              </span>
+            )}
+          </div>
+        )}
+
+        <BlockTray
+          pieces={gameState.pieces}
+          draggedPieceId={dragState.piece?.id ?? null}
+          selectedPieceId={selectedPieceId}
+          dragPos={dragState.pos}
+          cellSize={boardCellSizeRef.current}
+          onDragStart={handleDragStart}
+          onDragMove={handleDragMove}
+          onDragEnd={handleDragEnd}
+          onSelectPiece={handleSelectPiece}
+        />
+
+      </div>
+    </>
   );
 }
