@@ -261,30 +261,34 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 w-full h-full max-h-[85vh] overflow-hidden">
             {/* Left side: Game and Controls */}
-            <div className="flex flex-col items-center gap-6 w-full max-w-[420px]">
+            <div className="flex flex-col items-center justify-between gap-2 w-full max-w-[360px] h-full overflow-hidden py-1">
               <ScoreBoard score={score} highScore={highScore} isBumping={scoreBumping} />
 
-              <GameBoard
-                grid={grid}
-                dragState={dragState}
-                onDragMove={handleDragMove}
-              />
+              <div className="flex-1 flex items-center justify-center w-full min-h-0 max-h-[50vh] aspect-square">
+                <GameBoard
+                  grid={grid}
+                  dragState={dragState}
+                  onDragMove={handleDragMove}
+                />
+              </div>
 
-              <BlockTray
-                trayPieces={trayPieces}
-                dragState={dragState}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-              />
+              <div className="w-full flex justify-center py-1">
+                <BlockTray
+                  trayPieces={trayPieces}
+                  dragState={dragState}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                />
+              </div>
             </div>
 
             {/* Right side: Leaderboard / Live Stats */}
-            <div className="w-full md:w-80 h-[500px] bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col backdrop-blur-md">
+            <div className="hidden md:flex w-80 h-full max-h-[550px] bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex-col backdrop-blur-md overflow-hidden">
               <Leaderboard />
             </div>
-          </>
+          </div>
         )}
       </main>
 
