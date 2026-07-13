@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from 'react';
+import { Component, type ReactNode, type ErrorInfo } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -17,6 +17,22 @@ export class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(): State {
     return { hasError: true };
   }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Dev-only logging so the real exception + component stack are visible
+    // during debugging. Not shown to production end users.
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.error('Game runtime error:', error, errorInfo);
+    }
+  }
+
+  handleReload = () => {
+    // Best-effort recovery: try to clear the boundary in-place first, then
+    // fall back to a full reload. Reload is the last resort, not the fix.
+    this.setState({ hasError: false });
+    window.location.reload();
+  };
 
   render() {
     if (this.state.hasError) {
@@ -39,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
               Something went wrong. Try reloading.
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={this.handleReload}
               style={{
                 background: 'var(--base-blue)',
                 color: '#fff',

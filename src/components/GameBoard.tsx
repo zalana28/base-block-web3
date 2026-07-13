@@ -100,11 +100,12 @@ function GameBoard({
     <div
       ref={boardRef}
       onPointerDown={onPointerDown}
-      className="game-board relative grid grid-cols-10 grid-rows-10 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none"
+      className="game-board relative grid grid-cols-8 grid-rows-8 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none"
     >
       {grid.map((row, rIdx) =>
         row.map((cell, cIdx) => {
-          const filled = cell.filled;
+          // A cell is `CellColor | null`: null = empty, a color string = filled.
+          const filled = cell !== null;
           const ghost = isGhostCell(rIdx, cIdx);
           const clearing = isClearingCell(rIdx, cIdx);
           const justPlaced = isJustPlaced(rIdx, cIdx);
@@ -113,7 +114,7 @@ function GameBoard({
             <Cell
               key={`${rIdx}-${cIdx}`}
               filled={filled}
-              color={cell.color}
+              color={cell ?? undefined}
               isGhost={ghost}
               isGhostValid={isGhostValid}
               isClearing={clearing}
