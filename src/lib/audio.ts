@@ -1,0 +1,55 @@
+// Tiny synthesized sound effects via Web Audio API — no external files needed
+let ctx: AudioContext | null = null;
+let muted = false;
+
+export function setMuted(m: boolean) { muted = m; }
+export function isMuted(): boolean { return muted; }
+
+function getCtx(): AudioContext {
+  if (!ctx) ctx = new AudioContext();
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+
+function play(freq: number, dur: number, type: OscillatorType = 'square', vol = 0.12, freqEnd?: number) {
+  if (muted) return;
+  try {
+    const c = getCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, c.currentTime);
+    if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, c.currentTime + dur);
+    gain.gain.setValueAtTime(vol, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + dur);
+  } catch { /* silent fallback */ }
+}
+
+/** Short click when placing a block */
+export function sfxPlace() { play(600, 0.08, 'square', 0.1, 300); }
+
+/** Rising sparkle when a line clears */
+export function sfxClear() {
+  play(400, 0.15, 'sine', 0.15, 800);
+  setTimeout(() => play(600, 0.15, 'sine', 0.12, 1200), 80);
+}
+
+/** Ascending combo chime */
+export function sfxCombo(level: number) {
+  const base = 500 + level * 100;
+  play(base, 0.2, 'triangle', 0.15, base * 1.5);
+  setTimeout(() => play(base * 1.25, 0.15, 'triangle', 0.1, base * 1.8), 100);
+}
+
+/** Descending tone for game over */
+export function sfxGameOver() {
+  play(400, 0.3, 'sawtooth', 0.1, 100);
+  setTimeout(() => play(250, 0.4, 'sawtooth', 0.08, 80), 200);
+}
+
+/** Short select click */
+export function sfxSelect() { play(800, 0.04, 'square', 0.06, 600); }

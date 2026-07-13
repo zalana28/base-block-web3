@@ -36,11 +36,15 @@ export interface GameState {
   maxCombo: number;
   streak: number;
   totalCleared: number;
+  totalMoves: number;
   phase: 'menu' | 'playing' | 'over';
   mode: 0 | 1;
   level: number;
   targetScore: number;
   timeLeft: number;
+  clearingRows: number[];
+  clearingCols: number[];
+  lastPlacedCells: Position[];
 }
 
 export interface PlacedPiece {
