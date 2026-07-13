@@ -925,49 +925,160 @@ button .btn-icon {
   z-index: 0;
 }
 
-.cell {
-  border-radius: 3px;
-  /* Subtle gradient for depth */
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  /* Inner shadow for recessed look */
-  box-shadow: 
-    inset 0 1px 3px rgba(0, 0, 0, 0.5),
-    inset 0 -1px 2px rgba(255, 255, 255, 0.02);
-  transition: background 0.12s, transform 0.1s, box-shadow 0.12s;
+/* ═══════════════════════════════════════════════════════════
+   3D NEON VOXEL BLOCK SYSTEM
+   Shared by board cells and tray pieces so both speak the same
+   visual language. Per-color tokens drive gradient, bevel, glow.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Per-color tokens: main / light (top-left highlight) / dark (bottom-right) / glow / edge */
+.bc-red    { --bc-main:#ff3860; --bc-light:#ff9db1; --bc-dark:#a30f2c; --bc-glow:rgba(255,56,96,0.55);  --bc-edge:rgba(255,180,195,0.55); }
+.bc-orange { --bc-main:#ff8c00; --bc-light:#ffc879; --bc-dark:#9c5200; --bc-glow:rgba(255,140,0,0.55);  --bc-edge:rgba(255,210,150,0.55); }
+.bc-yellow { --bc-main:#ffd400; --bc-light:#fff08a; --bc-dark:#a88a00; --bc-glow:rgba(255,212,0,0.55);  --bc-edge:rgba(255,240,160,0.6);  }
+.bc-green  { --bc-main:#00e676; --bc-light:#8dffc4; --bc-dark:#008544; --bc-glow:rgba(0,230,118,0.55);  --bc-edge:rgba(150,255,205,0.55); }
+.bc-cyan   { --bc-main:#00e0ff; --bc-light:#9bf3ff; --bc-dark:#0086a3; --bc-glow:rgba(0,224,255,0.55);  --bc-edge:rgba(180,245,255,0.55); }
+.bc-blue   { --bc-main:#3b6bff; --bc-light:#a9c0ff; --bc-dark:#0030a8; --bc-glow:rgba(0,82,255,0.6);    --bc-edge:rgba(170,195,255,0.55); }
+.bc-purple { --bc-main:#a855f7; --bc-light:#dcb6ff; --bc-dark:#5f1f9c; --bc-glow:rgba(168,85,247,0.55); --bc-edge:rgba(220,190,255,0.55); }
+.bc-pink   { --bc-main:#ff4fd8; --bc-light:#ffb0ee; --bc-dark:#a3108a; --bc-glow:rgba(255,79,216,0.55); --bc-edge:rgba(255,190,240,0.55); }
+
+/* Core glossy voxel surface */
+.block-3d {
   position: relative;
-  z-index: 1;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--bc-light) 0%, var(--bc-main) 44%, var(--bc-dark) 100%);
+  border: 1px solid var(--bc-edge);
+  box-shadow:
+    inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.42),   /* top-left highlight */
+    inset -2px -2px 3px rgba(0, 0, 0, 0.32),          /* bottom-right shade */
+    0 2px 0 var(--bc-dark),                           /* stacked depth edge */
+    0 3px 6px rgba(0, 0, 0, 0.35),                    /* soft drop shadow */
+    0 0 9px var(--bc-glow);                           /* neon glow */
+  overflow: hidden;
+}
+/* Top glossy sheen */
+.block-3d::before {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 6%;
+  height: 34%;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+/* Diagonal reflection */
+.block-3d::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(118deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 34%);
+  pointer-events: none;
 }
 
-.cell.filled {
-  /* Brighter border for filled cells */
-  border-color: rgba(255, 255, 255, 0.22);
-  /* Raised effect with outer glow */
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -1px 3px rgba(0, 0, 0, 0.35),
-    0 0 8px currentColor,
-    0 2px 4px rgba(0, 0, 0, 0.4);
-  transform: translateZ(0);
+/* ── Board cells ─────────────────────────────────────────── */
+.board-cell {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+/* Voxel fills its board wrapper */
+.board-cell > .block-3d {
+  width: 100%;
+  height: 100%;
 }
 
-.cell.ghost-valid {
-  background: rgba(0, 230, 118, 0.28);
-  border-color: var(--frog);
-  box-shadow: 
-    0 0 14px var(--frog-glow),
-    inset 0 0 8px rgba(0, 230, 118, 0.15);
-  animation: ghostPulse 0.8s ease-in-out infinite;
+.board-cell-empty {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-.cell.ghost-invalid {
+/* ── Ghost placement preview ─────────────────────────────── */
+.cell-ghost,
+.cell-ghost-invalid {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.cell-ghost {
+  background: rgba(0, 230, 118, 0.32);
+  border: 1px solid var(--frog);
+  box-shadow: 0 0 12px var(--frog-glow), inset 0 0 8px rgba(0, 230, 118, 0.2);
+  animation: ghostPulse 0.9s ease-in-out infinite;
+}
+.cell-ghost-invalid {
   background: rgba(239, 68, 68, 0.28);
-  border-color: var(--danger);
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+  border: 1px solid var(--danger);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+  animation: ghostInvalidPulse 0.5s ease-in-out infinite;
 }
 
-.cell.clearing {
-  animation: flashClear 0.4s ease;
+/* ── Placement drop-in (pop) ─────────────────────────────── */
+.block--dropping {
+  animation: blockDropIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes blockDropIn {
+  0%   { transform: translateY(-7px) scale(0.8);  opacity: 0; }
+  60%  { transform: translateY(0)    scale(1.08); opacity: 1; }
+  80%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+/* Bright landing flash via the reflection layer */
+.block--dropping::after {
+  animation: dropFlash 320ms ease-out both;
+}
+@keyframes dropFlash {
+  0%   { background: linear-gradient(118deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.2) 55%); }
+  100% { background: linear-gradient(118deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 34%); }
+}
+
+/* ── Line/column clear burst + particles ─────────────────── */
+.row--clearing {
+  animation: clearBurst 420ms ease-out both;
+  overflow: visible;
+  z-index: 3;
+}
+@keyframes clearBurst {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  30%  { transform: scale(1.14); filter: brightness(2.3); }
+  70%  { transform: scale(1.05); filter: brightness(1.6); opacity: 0.9; }
+  100% { transform: scale(0.18); filter: brightness(2.5); opacity: 0; }
+}
+.clear-spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bc-light, #fff);
+  box-shadow: 0 0 6px var(--bc-glow, rgba(255, 255, 255, 0.8));
+  pointer-events: none;
+  animation: sparkFly 420ms ease-out both;
+}
+.clear-spark.s2 {
+  width: 4px;
+  height: 4px;
+  animation-name: sparkFly2;
+}
+@keyframes sparkFly {
+  0%   { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+  100% { transform: translate(-170%, -230%) scale(0.2); opacity: 0; }
+}
+@keyframes sparkFly2 {
+  0%   { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+  100% { transform: translate(95%, 190%) scale(0.2);  opacity: 0; }
+}
+
+@keyframes ghostInvalidPulse {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-1.5px); }
+  75%      { transform: translateX(1.5px); }
 }
 
 /* Block Tray — floating pieces, no container */
@@ -986,12 +1097,49 @@ button .btn-icon {
   flex-shrink: 0;
 }
 
+/* Tighten tray on narrow phones so all 3 pieces stay visible */
+@media (max-width: 430px) {
+  .block-tray {
+    gap: 0.5rem;
+    max-width: 94vw;
+  }
+  .tray-piece {
+    padding: 0.3rem;
+  }
+}
+
 .tray-piece {
   display: flex;
   align-items: center;
   justify-content: center;
   touch-action: none;
-  transition: opacity 0.15s ease, transform 0.12s ease;
+  padding: 0.4rem;
+  border-radius: 0.75rem;
+  /* Thin neon slot / platform */
+  background: linear-gradient(180deg, rgba(0, 82, 255, 0.06), rgba(0, 0, 0, 0.15));
+  border: 1px solid rgba(0, 229, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 10px rgba(0, 82, 255, 0.1);
+  transition: opacity 0.15s ease, transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+  animation: trayPop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Stagger the three tray slots on (re)appear */
+.block-tray > .tray-piece:nth-child(1) { animation-delay: 0ms; }
+.block-tray > .tray-piece:nth-child(2) { animation-delay: 45ms; }
+.block-tray > .tray-piece:nth-child(3) { animation-delay: 90ms; }
+
+@keyframes trayPop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  70%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@media (hover: hover) {
+  .tray-piece:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0, 229, 255, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 6px 14px rgba(0, 0, 0, 0.4), 0 0 16px rgba(0, 229, 255, 0.25);
+  }
 }
 
 .tray-piece.dragging {
@@ -1000,7 +1148,9 @@ button .btn-icon {
 }
 
 .tray-piece.selected {
-  filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.6));
+  transform: translateY(-3px);
+  border-color: rgba(0, 229, 255, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 20px rgba(0, 229, 255, 0.4);
 }
 
 .tray-empty-slot {
@@ -1008,7 +1158,7 @@ button .btn-icon {
   height: 28px;
 }
 
-/* Block Shape — ENHANCED GRADIENT + GLOW */
+/* Block Shape grid — cells are rendered with the shared .block-3d system */
 .block-shape {
   display: grid;
   gap: 2px;
@@ -1016,49 +1166,10 @@ button .btn-icon {
   touch-action: none;
   position: relative;
   z-index: 10;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
 
 .block-shape:active {
   cursor: grabbing;
-}
-
-.block-shape-cell {
-  width: 26px;
-  height: 26px;
-  border-radius: 3px;
-}
-
-.block-shape-cell.filled {
-  /* Rich gradient overlay */
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.25) 0%, 
-    currentColor 40%, 
-    rgba(0, 0, 0, 0.35) 100%
-  );
-  /* Bevel effect */
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 
-    /* Top highlight */
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    /* Bottom shadow */
-    inset 0 -1px 2px rgba(0, 0, 0, 0.5),
-    /* Outer glow */
-    0 0 10px currentColor,
-    /* Drop shadow */
-    0 3px 6px rgba(0, 0, 0, 0.45);
-}
-
-.block-shape.selected .block-shape-cell.filled {
-  border-color: rgba(255, 255, 255, 0.55);
-  /* Stronger glow when selected */
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 2px rgba(0, 0, 0, 0.5),
-    0 0 16px currentColor,
-    0 0 24px currentColor,
-    0 3px 6px rgba(0, 0, 0, 0.5);
-  animation: blockPulse 0.6s ease-in-out infinite;
 }
 
 /* Wallet Modal */
@@ -1390,6 +1501,20 @@ p {
   .wallet-status .dot.pending {
     animation: none;
   }
+
+  /* Keep valid/invalid + placement feedback, drop decorative motion */
+  .block--dropping,
+  .row--clearing,
+  .cell-ghost,
+  .cell-ghost-invalid,
+  .tray-piece {
+    animation: none !important;
+  }
+  .clear-spark { display: none; }
+  .row--clearing { opacity: 0; }               /* cleared cells still disappear */
+  .tray-piece:hover,
+  .tray-piece.selected { transform: none; }    /* no lift, keep glow via border */
+  .floating-drag-piece { transform: none; }    /* positioning handled inline; no decorative scale needed */
 }
 
 /* Tablet / Desktop */

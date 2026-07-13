@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import type { Grid, BlockPiece, Position } from '../lib/game/types.js';
+import type { Grid, BlockPiece, Position, CellColor } from '../lib/game/types.js';
 
 interface Props {
   grid: Grid;
@@ -13,21 +13,9 @@ interface Props {
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
 
-const COLOR_MAP: Record<string, string> = {
-  red: 'var(--block-red)',
-  orange: 'var(--block-orange)',
-  yellow: 'var(--block-yellow)',
-  green: 'var(--block-green)',
-  cyan: 'var(--block-cyan)',
-  blue: 'var(--block-blue)',
-  purple: 'var(--block-purple)',
-  pink: 'var(--block-pink)',
-};
-
 // Sub-component Cell di-memoize agar hanya re-render jika propertinya benar-benar berubah
 interface CellProps {
-  filled: boolean;
-  color?: string;
+  color?: CellColor;
   isGhost: boolean;
   isGhostValid: boolean;
   isClearing: boolean;
@@ -35,35 +23,52 @@ interface CellProps {
 }
 
 const Cell = memo(function Cell({
-  filled,
   color,
   isGhost,
   isGhostValid,
   isClearing,
-  isJustPlaced
+  isJustPlaced,
 }: CellProps) {
-  let bg = 'transparent';
-  if (filled && color) {
-    bg = COLOR_MAP[color] || color;
-  } else if (isGhost) {
-    bg = isGhostValid ? 'rgba(0, 229, 255, 0.35)' : 'rgba(239, 68, 68, 0.3)';
+  const filled = color != null;
+
+  // Empty cell (with optional ghost preview overlay)
+  if (!filled) {
+    if (isGhost) {
+      return (
+        <div className="board-cell">
+          <div className={isGhostValid ? 'cell-ghost' : 'cell-ghost-invalid'} />
+        </div>
+      );
+    }
+    return (
+      <div className="board-cell">
+        <div className="board-cell-empty" />
+      </div>
+    );
   }
 
-  const classes = [
-    'w-full h-full rounded-[4px] transition-all duration-100',
-    filled ? 'shadow-[inset_0_1px_3px_rgba(255,255,255,0.2)]' : 'bg-slate-900/30 border border-slate-800/40',
+  // Filled 3D voxel cell
+  const cls = [
+    'block-3d',
+    `bc-${color}`,
     isClearing ? 'row--clearing' : '',
-    isJustPlaced ? 'block--dropping' : ''
+    isJustPlaced ? 'block--dropping' : '',
   ].filter(Boolean).join(' ');
 
+  const style: React.CSSProperties | undefined =
+    isJustPlaced ? { willChange: 'transform' } : undefined;
+
   return (
-    <div 
-      className={classes} 
-      style={{ 
-        background: bg,
-        boxShadow: filled && color ? `0 0 10px ${COLOR_MAP[color] || color}44` : undefined
-      }} 
-    />
+    <div className="board-cell">
+      <div className={cls} style={style}>
+        {isClearing && (
+          <>
+            <span className="clear-spark" />
+            <span className="clear-spark s2" />
+          </>
+        )}
+      </div>
+    </div>
   );
 });
 
@@ -105,7 +110,7 @@ function GameBoard({
       {grid.map((row, rIdx) =>
         row.map((cell, cIdx) => {
           // A cell is `CellColor | null`: null = empty, a color string = filled.
-          const filled = cell !== null;
+          const color = cell ?? undefined;
           const ghost = isGhostCell(rIdx, cIdx);
           const clearing = isClearingCell(rIdx, cIdx);
           const justPlaced = isJustPlaced(rIdx, cIdx);
@@ -113,8 +118,7 @@ function GameBoard({
           return (
             <Cell
               key={`${rIdx}-${cIdx}`}
-              filled={filled}
-              color={cell ?? undefined}
+              color={color}
               isGhost={ghost}
               isGhostValid={isGhostValid}
               isClearing={clearing}
