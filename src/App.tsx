@@ -47,7 +47,8 @@ interface DragState {
 
 export default function App() {
   const fontReady = useFontReady();
-  const { address, isConnected, startGameOnChain, submitScoreOnChain } = useGameContract();
+  const { address, isConnected } = useAccount();
+  const { startGame, submitScore, status: contractStatus, error: contractError } = useGameContract();
   
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
@@ -113,7 +114,10 @@ export default function App() {
     if (score > 0) {
       try {
         setTxPending(true);
-        await submitScoreOnChain(BigInt(score));
+        // BaseBlockLeaderboard.sol: submitScore(uint8 mode, uint256 score, uint256 level)
+        // mode: 0 for Classic, 1 for Arcade
+        // level: 1 by default, or use level from useGameState if applicable
+        await submitScore(0, score, 1);
       } catch (err) {
         console.error("Failed to submit score:", err);
       } finally {
@@ -125,7 +129,7 @@ export default function App() {
   const handleStartGame = async () => {
     try {
       setTxPending(true);
-      await startGameOnChain();
+      await startGame(0);
       resetGame();
       setPhase("playing");
     } catch (err) {
