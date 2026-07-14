@@ -15,7 +15,17 @@ describe('GameBoard', () => {
   it('renders a grid containing filled (colored) cells without crashing', () => {
     const grid = placeBlock(createGrid(), [[true, true]], 'cyan', { row: 0, col: 0 });
     const { container } = render(<GameBoard grid={grid} />);
-    // 8x8 = 64 cells rendered
+    // 8x8 = 64 cell wrappers rendered
     expect(container.querySelectorAll('.game-board > div').length).toBe(64);
+  });
+
+  it('applies the 3D voxel classes (.block-3d + color token) to filled cells', () => {
+    const grid = placeBlock(createGrid(), [[true, true]], 'cyan', { row: 0, col: 0 });
+    const { container } = render(<GameBoard grid={grid} />);
+    const voxels = container.querySelectorAll('.block-3d.bc-cyan');
+    // two filled cells from the 1x2 piece
+    expect(voxels.length).toBe(2);
+    // empty cells use the recessed empty style
+    expect(container.querySelectorAll('.board-cell-empty').length).toBe(62);
   });
 });

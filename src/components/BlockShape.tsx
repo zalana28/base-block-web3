@@ -16,13 +16,6 @@ interface Props {
   onSelectPiece?: (pieceId: string | null) => void;
 }
 
-const COLOR_MAP: Record<string, string> = {
-  red: 'var(--block-red)', orange: 'var(--block-orange)',
-  yellow: 'var(--block-yellow)', green: 'var(--block-green)',
-  cyan: 'var(--block-cyan)', blue: 'var(--block-blue)',
-  purple: 'var(--block-purple)', pink: 'var(--block-pink)',
-};
-
 const GLOW_MAP: Record<string, string> = {
   red: 'rgba(255, 56, 96, 0.45)', orange: 'rgba(255, 140, 0, 0.45)',
   yellow: 'rgba(255, 212, 0, 0.5)', green: 'rgba(0, 230, 118, 0.45)',
@@ -121,21 +114,14 @@ function BlockShape({
   }
 
   const glow = GLOW_MAP[piece.color] ?? 'rgba(255,255,255,0.2)';
-  const bg = COLOR_MAP[piece.color] ?? 'transparent';
 
-  // Tray cells
+  // Tray cells — shared 3D voxel visual
   const trayCells = piece.shape.map((row, r) =>
     row.map((filled, c) => (
       <div
         key={`${r}-${c}`}
-        className={`block-shape-cell${filled ? ' filled' : ''}`}
-        style={{
-          width: trayCellSize,
-          height: trayCellSize,
-          background: filled ? bg : 'transparent',
-          borderRadius: 4,
-          boxShadow: filled ? `0 0 8px ${glow}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
-        }}
+        className={filled ? `block-3d bc-${piece.color}` : ''}
+        style={{ width: trayCellSize, height: trayCellSize }}
       />
     )),
   );
@@ -160,10 +146,10 @@ function BlockShape({
         zIndex: 9999,
         pointerEvents: 'none',
         willChange: 'transform',
-        transform: `translate3d(${dragPos.x}px, ${dragPos.y - liftY}px, 0)`,
+        transform: `translate3d(${dragPos.x}px, ${dragPos.y - liftY}px, 0) scale(1.05)`,
         ...getGridStyle(boardCellSize),
-        opacity: 0.9,
-        filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 12px rgba(0,229,255,0.3))',
+        opacity: 0.95,
+        filter: `drop-shadow(0 10px 20px rgba(0,0,0,0.6)) drop-shadow(0 0 16px ${glow})`,
         transition: 'none',
       }}
     >
@@ -171,14 +157,8 @@ function BlockShape({
         row.map((filled, c) => (
           <div
             key={`${r}-${c}`}
-            className={`block-shape-cell${filled ? ' filled' : ''}`}
-            style={{
-              width: boardCellSize,
-              height: boardCellSize,
-              background: filled ? bg : 'transparent',
-              borderRadius: 4,
-              boxShadow: filled ? `0 0 12px ${glow}, 0 2px 8px rgba(0,0,0,0.5)` : undefined,
-            }}
+            className={filled ? `block-3d bc-${piece.color}` : ''}
+            style={{ width: boardCellSize, height: boardCellSize }}
           />
         )),
       )}
