@@ -102,7 +102,7 @@ describe('App — in-game Classic score submission (regression)', () => {
   it('renders the SUBMIT SCORE button while Classic is playing', () => {
     enterGame();
     expect(
-      screen.getByRole('button', { name: /submit score on-chain/i }),
+      screen.getByRole('button', { name: /submit score/i }),
     ).toBeInTheDocument();
   });
 
@@ -113,7 +113,7 @@ describe('App — in-game Classic score submission (regression)', () => {
 
   it('calls submitScore once with mode 0 and the latest score on click', () => {
     enterGame();
-    fireEvent.click(screen.getByRole('button', { name: /submit score on-chain/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit score/i }));
     expect(submitScore).toHaveBeenCalledTimes(1);
     const call = submitScore.mock.calls[0];
     expect(call[0]).toBe(0); // Classic = mode 0
@@ -122,7 +122,7 @@ describe('App — in-game Classic score submission (regression)', () => {
 
   it('double-click does not produce two transactions (single-flight guard)', () => {
     enterGame();
-    const btn = screen.getByRole('button', { name: /submit score on-chain/i });
+    const btn = screen.getByRole('button', { name: /submit score/i });
     fireEvent.click(btn);
     fireEvent.click(btn);
     expect(submitScore).toHaveBeenCalledTimes(1);
@@ -138,16 +138,29 @@ describe('App — in-game Classic score submission (regression)', () => {
   it('does not reset/interrupt the game after a submit click', () => {
     enterGame();
     expect(screen.queryByText(/GAME OVER/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /submit score on-chain/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit score/i }));
     expect(document.querySelector('.game-board')).toBeInTheDocument();
     expect(screen.queryByText(/GAME OVER/i)).not.toBeInTheDocument();
+  });
+
+  it('does not render the long gas-fee paragraph during gameplay', () => {
+    enterGame();
+    expect(
+      screen.queryByText(/ask your wallet to confirm a transaction/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the board and block tray during Classic play', () => {
+    enterGame();
+    expect(document.querySelector('.game-board')).toBeInTheDocument();
+    expect(document.querySelector('.block-tray')).toBeInTheDocument();
   });
 
   it('Arcade does NOT render the in-game submit button', () => {
     state.mode = 1;
     enterGame();
     expect(
-      screen.queryByRole('button', { name: /submit score on-chain/i }),
+      screen.queryByRole('button', { name: /submit score/i }),
     ).not.toBeInTheDocument();
   });
 });

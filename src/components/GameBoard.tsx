@@ -105,7 +105,7 @@ function GameBoard({
     <div
       ref={boardRef}
       onPointerDown={onPointerDown}
-      className="game-board relative grid grid-cols-8 grid-rows-8 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none"
+      className="game-board"
     >
       {grid.map((row, rIdx) =>
         row.map((cell, cIdx) => {

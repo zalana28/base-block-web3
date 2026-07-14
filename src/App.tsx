@@ -371,7 +371,7 @@ export default function App() {
   return (
     <>
       {ambientBackground}
-      <div className="game-screen">
+      <div className="game-screen game-layout">
         <div className="game-header">
           <div className="game-header-row">
             <div className="game-header-text">
