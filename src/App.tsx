@@ -7,6 +7,7 @@ import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
+import SubmitScoreButton from "./components/SubmitScoreButton.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 
@@ -17,12 +18,17 @@ export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [lastSubmittedScore, setLastSubmittedScore] = useState<number | null>(null);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
+
+  // Guard so a single user click (or React Strict Mode double-invocation) cannot
+  // fire two on-chain submissions for the same score.
+  const submittingRef = useRef(false);
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -74,8 +80,17 @@ export default function App() {
   useEffect(() => {
     if (txStatus === "success" && !submitted) {
       setSubmitted(true);
+      setLastSubmittedScore(gameState.score);
+      submittingRef.current = false;
     }
-  }, [txStatus, submitted]);
+  }, [txStatus, submitted, gameState.score]);
+
+  // If the transaction fails/is rejected, release the guard so the user can retry.
+  useEffect(() => {
+    if (txStatus === "error") {
+      submittingRef.current = false;
+    }
+  }, [txStatus]);
 
   // Invalidate cached board rect on resize biar cell size tetap akurat
   useEffect(() => {
@@ -255,13 +270,23 @@ export default function App() {
     setPhase("playing");
     setIsPaused(false);
     setShowSettings(false);
-  }, [actions]);
+    // Reset submit state for the new game.
+    setSubmitted(false);
+    setLastSubmittedScore(null);
+    submittingRef.current = false;
+    txReset();
+  }, [actions, txReset]);
 
   const handleSubmitScore = useCallback(() => {
+    // Single-flight guard: ignore extra clicks / Strict Mode re-invocation
+    // until the in-flight transaction resolves.
+    if (submittingRef.current) return;
+    if (txStatus === "pending" || txStatus === "confirming") return;
+    submittingRef.current = true;
     txReset();
     setSubmitted(false);
     submitScore(gameState.mode, gameState.score, gameState.level);
-  }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level]);
+  }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level, txStatus]);
 
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
@@ -335,7 +360,7 @@ export default function App() {
           onSubmitScore={handleSubmitScore}
           txStatus={txStatus}
           txError={txError}
-          isSubmitted={submitted}
+          lastSubmittedScore={lastSubmittedScore}
           onPlayAgain={handlePlayAgain}
           onViewLeaderboard={() => setShowLeaderboard(true)}
         />
@@ -421,6 +446,17 @@ export default function App() {
           onDragEnd={handleDragEnd}
           onSelectPiece={handleSelectPiece}
         />
+
+        {gameState.mode === 0 && (
+          <SubmitScoreButton
+            score={gameState.score}
+            status={txStatus}
+            lastSubmittedScore={lastSubmittedScore}
+            errorMessage={txError?.message ?? null}
+            onSubmit={handleSubmitScore}
+            compact
+          />
+        )}
 
       </div>
     </>
