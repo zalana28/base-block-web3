@@ -14,10 +14,18 @@ const base = {
 };
 
 describe('SubmitScoreButton — shared submit control', () => {
-  it('shows the SUBMIT button and explains the wallet transaction', () => {
+  it('shows the SUBMIT button (no permanent explanatory paragraph)', () => {
     render(<SubmitScoreButton {...base} />);
-    expect(screen.getByRole('button', { name: /submit score on-chain/i })).toBeInTheDocument();
-    expect(screen.getByText(/ask your wallet to confirm a transaction/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /submit score/i })).toBeInTheDocument();
+    // The long gas-fee paragraph must NOT be rendered in-game/modal.
+    expect(
+      screen.queryByText(/ask your wallet to confirm a transaction/i),
+    ).not.toBeInTheDocument();
+    // Gas note is still available to assistive tech via the button's description.
+    expect(screen.getByRole('button', { name: /submit score/i })).toHaveAttribute(
+      'aria-description',
+      expect.stringMatching(/gas fee/i),
+    );
   });
 
   it('does NOT call onSubmit on render (no auto-submit)', () => {
@@ -29,7 +37,7 @@ describe('SubmitScoreButton — shared submit control', () => {
   it('calls onSubmit exactly once on click', () => {
     const onSubmit = vi.fn();
     render(<SubmitScoreButton {...base} onSubmit={onSubmit} />);
-    fireEvent.click(screen.getByRole('button', { name: /submit score on-chain/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit score/i }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
@@ -44,7 +52,7 @@ describe('SubmitScoreButton — shared submit control', () => {
     render(
       <SubmitScoreButton {...base} status="success" lastSubmittedScore={1200} />,
     );
-    expect(screen.getByRole('button', { name: /score submitted/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submitted/i })).toBeDisabled();
     expect(screen.getByText(/score confirmed on-chain/i)).toBeInTheDocument();
   });
 
@@ -57,7 +65,7 @@ describe('SubmitScoreButton — shared submit control', () => {
 
   it('is disabled when score <= 0', () => {
     render(<SubmitScoreButton {...base} score={0} />);
-    expect(screen.getByRole('button', { name: /submit score on-chain/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submit score/i })).toBeDisabled();
   });
 
   it('shows the error message on failure', () => {

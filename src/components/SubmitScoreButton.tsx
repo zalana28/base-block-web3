@@ -18,6 +18,10 @@ interface SubmitScoreButtonProps {
  *   AND the current score equals the last confirmed score).
  * - Disabled while a transaction is pending/confirming, when score <= 0, or once the
  *   current score has already been confirmed on-chain.
+ *
+ * UI: no permanent explanatory paragraph (removed to keep the gameplay viewport free of
+ * scroll). Instead the gas-fee note lives in an accessible `title`/aria-description and in
+ * the wallet confirmation step. Labels stay terse per the compact single-screen spec.
  */
 export default function SubmitScoreButton({
   score,
@@ -37,22 +41,23 @@ export default function SubmitScoreButton({
   const label = isBusy
     ? '⏳ CONFIRM IN WALLET'
     : isConfirmedSame
-      ? '✅ SCORE SUBMITTED ✓'
+      ? '✅ SUBMITTED ✓'
       : lastSubmittedScore != null && score > lastSubmittedScore
         ? '📤 SUBMIT UPDATED SCORE'
-        : '📤 SUBMIT SCORE ON-CHAIN';
+        : '📤 SUBMIT SCORE';
+
+  const feeNote =
+    'A wallet transaction and network gas fee are required to record your score on Base.';
 
   return (
     <div className={`submit-score${compact ? ' submit-score--compact' : ''}`}>
-      <p className="submit-score-hint">
-        Submitting records your score on the Base blockchain. This will ask your wallet
-        to confirm a transaction (network gas fee applies).
-      </p>
       <button
         type="button"
         className="primary submit-score-btn"
         onClick={onSubmit}
         disabled={disabled}
+        title={feeNote}
+        aria-description={feeNote}
       >
         {label}
       </button>

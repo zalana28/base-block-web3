@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import GameOverModal from '../GameOverModal.js';
 
 describe('GameOverModal — explicit score submission (no auto-submit)', () => {
-  it('shows a SUBMIT button that asks for a wallet transaction', () => {
+  it('shows a SUBMIT button and the gas note in the button description (no long paragraph)', () => {
     render(
       <GameOverModal
         score={1200}
@@ -19,9 +19,13 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         lastSubmittedScore={null}
       />,
     );
-    const btn = screen.getByRole('button', { name: /submit score on-chain/i });
+    const btn = screen.getByRole('button', { name: /submit score/i });
     expect(btn).toBeInTheDocument();
-    expect(screen.getByText(/ask your wallet to confirm a transaction/i)).toBeInTheDocument();
+    // Long paragraph removed; gas note lives in the button's accessible description.
+    expect(
+      screen.queryByText(/ask your wallet to confirm a transaction/i),
+    ).not.toBeInTheDocument();
+    expect(btn).toHaveAttribute('aria-description', expect.stringMatching(/gas fee/i));
   });
 
   it('does NOT call onSubmitScore on render (no auto-submit)', () => {
@@ -53,7 +57,7 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         lastSubmittedScore={null}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /submit score on-chain/i }));
+    fireEvent.click(screen.getByRole('button', { name: /submit score/i }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
@@ -84,7 +88,7 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         lastSubmittedScore={1200}
       />,
     );
-    expect(screen.getByRole('button', { name: /score submitted/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submitted/i })).toBeDisabled();
     expect(screen.getByText(/score confirmed on-chain/i)).toBeInTheDocument();
   });
 
