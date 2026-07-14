@@ -16,16 +16,12 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         onViewLeaderboard={() => {}}
         onSubmitScore={vi.fn()}
         txStatus="idle"
-        txError={null}
-        isSubmitted={false}
+        lastSubmittedScore={null}
       />,
     );
     const btn = screen.getByRole('button', { name: /submit score on-chain/i });
     expect(btn).toBeInTheDocument();
-    // Explains to the user that a wallet transaction is requested.
-    expect(
-      screen.getByText(/ask your wallet to confirm a transaction/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/ask your wallet to confirm a transaction/i)).toBeInTheDocument();
   });
 
   it('does NOT call onSubmitScore on render (no auto-submit)', () => {
@@ -38,6 +34,7 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         onPlayAgain={() => {}}
         onViewLeaderboard={() => {}}
         onSubmitScore={onSubmit}
+        lastSubmittedScore={null}
       />,
     );
     expect(onSubmit).not.toHaveBeenCalled();
@@ -53,6 +50,7 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         onPlayAgain={() => {}}
         onViewLeaderboard={() => {}}
         onSubmitScore={onSubmit}
+        lastSubmittedScore={null}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /submit score on-chain/i }));
@@ -69,7 +67,7 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         onViewLeaderboard={() => {}}
         onSubmitScore={vi.fn()}
         txStatus="confirming"
-        isSubmitted={false}
+        lastSubmittedScore={null}
       />,
     );
     expect(screen.getByRole('button', { name: /confirm in wallet/i })).toBeDisabled();
@@ -83,11 +81,10 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         onViewLeaderboard={() => {}}
         onSubmitScore={vi.fn()}
         txStatus="success"
-        isSubmitted={true}
+        lastSubmittedScore={1200}
       />,
     );
-    const btn = screen.getByRole('button', { name: /score submitted/i });
-    expect(btn).toBeDisabled();
+    expect(screen.getByRole('button', { name: /score submitted/i })).toBeDisabled();
     expect(screen.getByText(/score confirmed on-chain/i)).toBeInTheDocument();
   });
 
@@ -102,7 +99,7 @@ describe('GameOverModal — explicit score submission (no auto-submit)', () => {
         onSubmitScore={vi.fn()}
         txStatus="error"
         txError={{ message: 'User rejected the request' }}
-        isSubmitted={false}
+        lastSubmittedScore={null}
       />,
     );
     expect(screen.getByText(/user rejected the request/i)).toBeInTheDocument();
