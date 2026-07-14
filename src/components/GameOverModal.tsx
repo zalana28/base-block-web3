@@ -1,3 +1,5 @@
+type TxStatus = 'idle' | 'pending' | 'confirming' | 'success' | 'error';
+
 interface Props {
   score: number;
   bestScore: number;
@@ -9,14 +11,26 @@ interface Props {
   reason?: 'no-moves' | 'time-up';
   onPlayAgain: () => void;
   onViewLeaderboard: () => void;
+  onSubmitScore?: () => void;
+  txStatus?: TxStatus;
+  txError?: { message: string } | null;
+  isSubmitted?: boolean;
 }
 
 export default function GameOverModal({
   score, bestScore, mode, level, combo, totalCleared, totalMoves,
   reason, onPlayAgain, onViewLeaderboard,
+  onSubmitScore, txStatus = 'idle', txError = null, isSubmitted = false,
 }: Props) {
   const isTimeUp = reason === 'time-up';
   const isNewBest = score >= bestScore && score > 0;
+
+  const isBusy = txStatus === 'pending' || txStatus === 'confirming';
+  const submitLabel = isBusy
+    ? '⏳ CONFIRM IN WALLET…'
+    : isSubmitted
+      ? '✅ SCORE SUBMITTED'
+      : '📤 SUBMIT SCORE ON-CHAIN';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Game over">
@@ -82,6 +96,41 @@ export default function GameOverModal({
             LEADERBOARD
           </button>
         </div>
+
+        {onSubmitScore && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              margin: '0.75rem 0 0',
+            }}
+          >
+            <p style={{ fontSize: 10, color: 'var(--base-dim)', margin: 0, letterSpacing: '0.08em' }}>
+              Submitting records your score on the Base blockchain.
+              This will ask your wallet to confirm a transaction (network gas fee applies).
+            </p>
+            <button
+              className="primary"
+              onClick={onSubmitScore}
+              disabled={isBusy || isSubmitted}
+              style={{ fontSize: 12, padding: '10px 22px' }}
+            >
+              {submitLabel}
+            </button>
+            {txStatus === 'error' && txError && (
+              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+                {txError.message}
+              </span>
+            )}
+            {isSubmitted && (
+              <span style={{ fontSize: 10, color: 'var(--base-bright)' }}>
+                Score confirmed on-chain ✓
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
