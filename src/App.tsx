@@ -9,6 +9,7 @@ import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
+import ComboEffect from "./components/ComboEffect.js";
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
@@ -45,12 +46,12 @@ export default function App() {
   const boardRectRef = useRef<DOMRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // (clearing animation, opsional — bisa di-wire kemudian)
-  const [clearingRows] = useState<number[]>([]);
-  const [clearingCols] = useState<number[]>([]);
-
-  const [gameState, actions] = useGameState();
+  const [gameState, actions] = useGameState(isPaused);
   const boardRef = useRef<HTMLDivElement>(null);
+
+  // Input gate: block placement while a clear animation is in flight (H2)
+  const isClearing =
+    gameState.clearingRows.length > 0 || gameState.clearingCols.length > 0;
 
   // Ref untuk grid — hindari stale closure di RAF
   const gridRef = useRef(gameState.grid);
@@ -96,7 +97,7 @@ export default function App() {
 
   const handleBoardTap = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isPaused) return;
+      if (isPaused || isClearing) return;
       if (selectedPieceId == null || !boardRef.current) return;
       const piece = gameState.pieces.find((p): p is BlockPiece => p !== null && p.id === selectedPieceId);
       if (!piece) return;
@@ -124,12 +125,12 @@ export default function App() {
         setSelectedPieceId(null);
       }
     },
-    [selectedPieceId, gameState.pieces, actions, isPaused],
+    [selectedPieceId, gameState.pieces, actions, isPaused, isClearing],
   );
 
   const handleDragStart = useCallback(
     (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
-      if (isPaused) return;
+      if (isPaused || isClearing) return;
       // Clear any tap selection when user starts dragging
       setSelectedPieceId(null);
 
@@ -160,12 +161,12 @@ export default function App() {
         ghostValid: false,
       });
     },
-    [isPaused],
+    [isPaused, isClearing],
   );
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
-      if (isPaused) return;
+      if (isPaused || isClearing) return;
       if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
       
       // FIX: Direct update tanpa RAF untuk responsiveness maksimal
@@ -192,13 +193,13 @@ export default function App() {
         ghostValid: isValid,
       }));
     },
-    [isPaused],
+    [isPaused, isClearing],
   );
 
 
   const handleDragEnd = useCallback(
     (clientX: number, clientY: number) => {
-      if (isPaused) return;
+      if (isPaused || isClearing) return;
       // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
       const wasDragging = isDraggingRef.current;
       const piece = dragPieceRef.current;
@@ -239,7 +240,7 @@ export default function App() {
         }
       }
     },
-    [actions, isPaused],
+    [actions, isPaused, isClearing],
   );
 
 
@@ -391,11 +392,14 @@ export default function App() {
           ghostPiece={dragState.piece}
           ghostPos={dragState.ghost}
           isGhostValid={dragState.ghostValid}
-          clearingRows={clearingRows}
-          clearingCols={clearingCols}
+          clearingRows={gameState.clearingRows}
+          clearingCols={gameState.clearingCols}
+          lastPlacedCells={gameState.lastPlacedCells}
           boardRef={boardRef}
           onPointerDown={handleBoardTap}
         />
+
+        <ComboEffect combo={gameState.combo} />
 
         <BlockTray
           pieces={gameState.pieces}

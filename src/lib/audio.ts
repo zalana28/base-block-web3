@@ -51,5 +51,11 @@ export function sfxGameOver() {
   setTimeout(() => play(250, 0.4, 'sawtooth', 0.08, 80), 200);
 }
 
+/** Bright rising arpeggio for level up */
+export function sfxLevelUp() {
+  play(523.25, 0.18, 'sine', 0.12, 1046.5);
+  setTimeout(() => play(784, 0.22, 'sine', 0.1, 1568), 120);
+}
+
 /** Short select click */
 export function sfxSelect() { play(800, 0.04, 'square', 0.06, 600); }

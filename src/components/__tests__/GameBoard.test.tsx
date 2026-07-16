@@ -18,4 +18,18 @@ describe('GameBoard', () => {
     // 8x8 = 64 cells rendered
     expect(container.querySelectorAll('.game-board > div').length).toBe(64);
   });
+
+  it('applies clear and placement animation classes from props', () => {
+    const grid = placeBlock(createGrid(), [[true]], 'cyan', { row: 0, col: 0 });
+    const { container } = render(
+      <GameBoard
+        grid={grid}
+        clearingRows={[0]}
+        lastPlacedCells={[{ row: 0, col: 0 }]}
+      />,
+    );
+    // Every cell in row 0 is marked clearing; the filled cell is just-placed.
+    expect(container.querySelectorAll('.row--clearing').length).toBe(8);
+    expect(container.querySelector('.block--dropping')).not.toBeNull();
+  });
 });
