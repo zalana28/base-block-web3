@@ -970,6 +970,58 @@ button .btn-icon {
   animation: flashClear 0.4s ease;
 }
 
+/* ── Juicy board feedback ─────────────────────────────────────
+   GameBoard cells use Tailwind utility classes (not .cell), so the
+   animation hooks below match the class names the component emits. */
+
+/* Cleared cells: bright neon flash, pop, then shrink + fade out.
+   Duration matches the 320ms deferred grid update in useGameState. */
+.row--clearing {
+  position: relative;
+  z-index: 2;
+  animation: clearFlashPop 0.32s ease-out forwards;
+}
+
+/* Freshly placed cells: overshoot pop with a brightness kick. */
+.block--dropping {
+  position: relative;
+  z-index: 1;
+  animation: placePop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Combo streak popup (ComboEffect) */
+.combo-popup {
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: comboPop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.combo-text {
+  font-weight: 800;
+  font-size: 1.375rem;
+  letter-spacing: 0.18em;
+  color: var(--yellow);
+  text-shadow:
+    0 0 10px rgba(255, 234, 0, 0.65),
+    0 0 28px rgba(255, 140, 0, 0.45);
+}
+
+.combo-count {
+  font-weight: 900;
+  font-size: 2.25rem;
+  color: var(--base-cyan);
+  text-shadow:
+    0 0 12px var(--neon-glow),
+    0 0 34px var(--neon-glow-soft);
+}
+
 /* Block Tray — floating pieces, no container */
 .block-tray {
   display: flex;
@@ -1380,6 +1432,40 @@ p {
   100% { transform: scale(1); opacity: 1; }
 }
 
+@keyframes clearFlashPop {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1.18);
+    filter: brightness(2.4) saturate(1.4);
+    opacity: 1;
+    box-shadow:
+      0 0 16px var(--neon-glow),
+      0 0 30px var(--neon-glow-soft);
+  }
+  100% {
+    transform: scale(0.1);
+    filter: brightness(3);
+    opacity: 0;
+  }
+}
+
+@keyframes placePop {
+  0% { transform: scale(1.3); filter: brightness(1.9); }
+  60% { transform: scale(0.94); filter: brightness(1.2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes comboPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  60% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(1); }
+}
+
 @keyframes ghostPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
@@ -1402,7 +1488,10 @@ p {
   .landing-title,
   .panel,
   .wallet-modal,
-  .wallet-status .dot.pending {
+  .wallet-status .dot.pending,
+  .row--clearing,
+  .block--dropping,
+  .combo-popup {
     animation: none;
   }
 }

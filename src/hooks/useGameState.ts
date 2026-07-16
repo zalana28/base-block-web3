@@ -5,6 +5,8 @@ import { calculateScore } from '../lib/game/scoring.js';
 import type { BlockPiece, GameState, Grid, Position } from '../lib/game/types.js';
 import { useScore } from './useScore.js';
 import { useBlockGenerator } from './useBlockGenerator.js';
+import { sfxPlace, sfxClear, sfxCombo, sfxLevelUp, sfxGameOver } from '../lib/audio.js';
+import { haptic, vibrate } from '../lib/haptics.js';
 
 interface Actions {
   startGame: (mode?: 0 | 1) => void;
@@ -17,55 +19,6 @@ interface Actions {
 const LEVEL_THRESHOLD = 500;
 const ARCADE_TIME_PER_LEVEL = 90;
 
-// ── Shared AudioContext for SFX ───────────────────────────────
-let audioCtx: AudioContext | null = null;
-function getAudioCtx(): AudioContext | null {
-  try {
-    if (!audioCtx) audioCtx = new AudioContext();
-    return audioCtx;
-  } catch { return null; }
-}
-
-function sfxPlace() {
-  const ctx = getAudioCtx(); if (!ctx) return;
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.connect(g); g.connect(ctx.destination);
-  o.type = 'sine'; o.frequency.value = 660;
-  g.gain.setValueAtTime(0.08, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-  o.start(); o.stop(ctx.currentTime + 0.12);
-}
-
-function sfxClear(combo: number) {
-  const ctx = getAudioCtx(); if (!ctx) return;
-  const base = 440 + combo * 110;
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.connect(g); g.connect(ctx.destination);
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(base, ctx.currentTime);
-  o.frequency.exponentialRampToValueAtTime(base * 2, ctx.currentTime + 0.15);
-  g.gain.setValueAtTime(0.1, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-  o.start(); o.stop(ctx.currentTime + 0.3);
-}
-
-function sfxLevelUp() {
-  const ctx = getAudioCtx(); if (!ctx) return;
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.connect(g); g.connect(ctx.destination);
-  o.type = 'sine';
-  o.frequency.setValueAtTime(523.25, ctx.currentTime);
-  o.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.1);
-  g.gain.setValueAtTime(0.12, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-  o.start(); o.stop(ctx.currentTime + 0.35);
-}
-
-// ── Haptic feedback ──────────────────────────────────────────
-function vibrate(ms: number) {
-  try { navigator.vibrate?.(ms); } catch { /* unsupported */ }
-}
-
 // Helper: get absolute cell positions from a piece placement
 function getPlacedCells(piece: BlockPiece, pos: { row: number; col: number }): Position[] {
   const cells: Position[] = [];
@@ -77,7 +30,7 @@ function getPlacedCells(piece: BlockPiece, pos: { row: number; col: number }): P
   return cells;
 }
 
-export function useGameState(): [GameState, Actions] {
+export function useGameState(paused = false): [GameState, Actions] {
   const { score, bestScore, addScore, reset: resetScore } = useScore();
   const { pieces, nextPieces, regenerate, markUsed } = useBlockGenerator();
 
@@ -141,14 +94,14 @@ export function useGameState(): [GameState, Actions] {
     setPhase('playing');
   }, [resetScore, regenerate]);
 
-  // Arcade countdown timer
+  // Arcade countdown timer — paused flag freezes the countdown (H3)
   useEffect(() => {
-    if (phase !== 'playing' || mode !== 1) return;
+    if (phase !== 'playing' || mode !== 1 || paused) return;
     const interval = setInterval(() => {
       setTimeLeft((t) => Math.max(0, t - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [phase, mode]);
+  }, [phase, mode, paused]);
 
   useEffect(() => {
     if (mode === 1 && timeLeft <= 0 && phase === 'playing') {
@@ -159,10 +112,13 @@ export function useGameState(): [GameState, Actions] {
   const placePiece = useCallback(
     (piece: BlockPiece, pos: { row: number; col: number }): boolean => {
       if (phase !== 'playing') return false;
+      // Gate input while a clear animation is in flight (H2): the deferred
+      // grid update would otherwise overwrite this placement after scoring it.
+      if (clearingRows.length > 0 || clearingCols.length > 0) return false;
       if (!canPlace(grid, piece.shape, pos)) return false;
 
       // ── Haptic on place ──────────────────────
-      vibrate(8);
+      haptic.place();
       sfxPlace();
 
       // Track placed cells for placement animation
@@ -183,8 +139,8 @@ export function useGameState(): [GameState, Actions] {
       // ── If lines cleared, show animation first, then apply ──
       if (linesCleared > 0) {
         // Haptic + SFX
-        vibrate(25);
-        sfxClear(combo);
+        haptic.clear();
+        sfxClear();
 
         // Show clearing animation
         setClearingRows(result.clearedRows);
@@ -204,6 +160,12 @@ export function useGameState(): [GameState, Actions] {
         setCombo(nextCombo);
         setMaxCombo((m) => Math.max(m, nextCombo));
         setTotalCleared((tc) => tc + result.cellsCleared);
+
+        // Combo juice on streaks
+        if (nextCombo >= 2) {
+          sfxCombo(nextCombo);
+          haptic.combo(nextCombo);
+        }
       } else {
         // No lines cleared — apply immediately
         setGrid(afterClear);
@@ -215,9 +177,10 @@ export function useGameState(): [GameState, Actions] {
       markUsed(piece.id, level);
       setTotalMoves((m) => m + 1);
 
-      // Arcade level-up check
+      // Arcade level-up check — compute from post-move score so leveling
+      // registers on the scoring move itself (L1)
       if (mode === 1) {
-        const newLevel = Math.floor(score / LEVEL_THRESHOLD) + 1;
+        const newLevel = Math.floor((score + points) / LEVEL_THRESHOLD) + 1;
         if (newLevel > prevLevelRef.current) {
           prevLevelRef.current = newLevel;
           setLevel(newLevel);
@@ -229,8 +192,18 @@ export function useGameState(): [GameState, Actions] {
 
       return true;
     },
-    [phase, grid, streak, combo, addScore, markUsed, mode, score, level],
+    [phase, grid, streak, combo, addScore, markUsed, mode, score, level, clearingRows, clearingCols],
   );
+
+  // ── Game-over juice: SFX + haptic once on transition to 'over' ──
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    if (phase === 'over' && prevPhaseRef.current !== 'over') {
+      sfxGameOver();
+      haptic.gameOver();
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
 
   // ── Delayed game-over check ───────────────────────────────
   useEffect(() => {
