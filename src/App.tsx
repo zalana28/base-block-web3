@@ -402,12 +402,11 @@ export default function App() {
         <ComboEffect combo={gameState.combo} />
 
         {gameState.mode === 0 && gameState.score > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+          <div className="classic-submit">
             <button
-              className="primary"
+              className="primary classic-submit-btn"
               onClick={handleSubmitScore}
               disabled={txStatus === 'pending' || txStatus === 'confirming'}
-              style={{ fontSize: 12, padding: '8px 20px' }}
             >
               {txStatus === 'pending' || txStatus === 'confirming'
                 ? '⏳ SUBMITTING...'
@@ -416,7 +415,7 @@ export default function App() {
                   : '📤 SUBMIT SCORE'}
             </button>
             {txStatus === 'error' && txError && (
-              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+              <span className="classic-submit-error">
                 {txError.message}
               </span>
             )}
