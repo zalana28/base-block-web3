@@ -18,6 +18,9 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
         </div>
         <h1 style={{ marginBottom: '0.25rem' }}>TOP STACKERS</h1>
         <h2>🏆 ON BASE NETWORK</h2>
+        <div className="unverified-badge">
+          ⚠️ UNVERIFIED — scores are self-reported
+        </div>
 
         <div className="leaderboard-list">
           {isLoading && (

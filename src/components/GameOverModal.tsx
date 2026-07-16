@@ -1,3 +1,5 @@
+type TxStatus = 'idle' | 'pending' | 'confirming' | 'success' | 'error';
+
 interface Props {
   score: number;
   bestScore: number;
@@ -9,14 +11,18 @@ interface Props {
   reason?: 'no-moves' | 'time-up';
   onPlayAgain: () => void;
   onViewLeaderboard: () => void;
+  onSubmitScore?: () => void;
+  txStatus?: TxStatus;
+  txError?: { message: string } | null;
 }
 
 export default function GameOverModal({
   score, bestScore, mode, level, combo, totalCleared, totalMoves,
-  reason, onPlayAgain, onViewLeaderboard,
+  reason, onPlayAgain, onViewLeaderboard, onSubmitScore, txStatus = 'idle', txError,
 }: Props) {
   const isTimeUp = reason === 'time-up';
   const isNewBest = score >= bestScore && score > 0;
+  const isSubmitting = txStatus === 'pending' || txStatus === 'confirming';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Game over">
@@ -73,6 +79,30 @@ export default function GameOverModal({
             </div>
           )}
         </div>
+
+        {/* User-initiated on-chain score submit — contract reverts on score 0,
+            so the button is hidden unless the score is positive */}
+        {onSubmitScore && score > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '0.75rem 0 0.25rem' }}>
+            <button
+              className="primary"
+              onClick={onSubmitScore}
+              disabled={isSubmitting || txStatus === 'success'}
+              style={{ fontSize: 12, padding: '8px 20px' }}
+            >
+              {isSubmitting
+                ? '⏳ SUBMITTING...'
+                : txStatus === 'success'
+                  ? '✅ SCORE SUBMITTED'
+                  : '📤 SUBMIT SCORE ON-CHAIN'}
+            </button>
+            {txStatus === 'error' && txError && (
+              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+                {txError.message}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="landing-actions" style={{ marginTop: '0.5rem' }}>
           <button className="primary" onClick={onPlayAgain}>

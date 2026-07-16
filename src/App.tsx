@@ -16,15 +16,12 @@ type GameOverReason = 'no-moves' | 'time-up';
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [scoreSubmitted, setScoreSubmitted] = useState(false);
-  const [gameMode, setGameMode] = useState<0 | 1>(0);
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>('no-moves');
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
-  const [manualSubmitted, setManualSubmitted] = useState(false);
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -61,7 +58,7 @@ export default function App() {
     gridRef.current = gameState.grid;
   }, [gameState.grid]);
 
-  // Auto-submit score on game over
+  // Transition to game-over phase (score submit is user-initiated in GameOverModal)
   useEffect(() => {
     if (gameState.phase === "over") {
       setPhase("over");
@@ -70,12 +67,8 @@ export default function App() {
       } else {
         setGameOverReason('no-moves');
       }
-      if (!scoreSubmitted) {
-        submitScore(gameMode, gameState.score, gameState.level);
-        setScoreSubmitted(true);
-      }
     }
-  }, [gameState.phase, gameState.score, gameState.level, gameState.timeLeft, gameState.mode, scoreSubmitted, submitScore, gameMode]);
+  }, [gameState.phase, gameState.timeLeft, gameState.mode]);
 
   // Invalidate cached board rect on resize biar cell size tetap akurat
   useEffect(() => {
@@ -251,23 +244,19 @@ export default function App() {
 
 
   const handleStartGame = useCallback((mode: 0 | 1) => {
-    setGameMode(mode);
     actions.startGame(mode);
     setPhase("playing");
     setIsPaused(false);
     setShowSettings(false);
   }, [actions]);
 
-  const handleManualSubmit = useCallback(() => {
+  const handleSubmitScore = useCallback(() => {
     txReset();
     submitScore(gameState.mode, gameState.score, gameState.level);
-    setManualSubmitted(true);
   }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level]);
 
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
-    setScoreSubmitted(false);
-    setManualSubmitted(false);
     txReset();
     setGameOverReason('no-moves');
     setPhase("wallet");
@@ -283,8 +272,6 @@ export default function App() {
   const handleExitGame = useCallback(() => {
     setIsPaused(false);
     setShowSettings(false);
-    setScoreSubmitted(false);
-    setManualSubmitted(false);
     txReset();
     actions.resetGame();
     setPhase("wallet");
@@ -337,6 +324,9 @@ export default function App() {
           reason={gameOverReason}
           onPlayAgain={handlePlayAgain}
           onViewLeaderboard={() => setShowLeaderboard(true)}
+          onSubmitScore={handleSubmitScore}
+          txStatus={txStatus}
+          txError={txError}
         />
       </>
     );
@@ -406,28 +396,6 @@ export default function App() {
           boardRef={boardRef}
           onPointerDown={handleBoardTap}
         />
-
-        {gameState.mode === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
-            <button
-              className="primary"
-              onClick={handleManualSubmit}
-              disabled={txStatus === 'pending' || txStatus === 'confirming'}
-              style={{ fontSize: 12, padding: '8px 20px' }}
-            >
-              {txStatus === 'pending' || txStatus === 'confirming'
-                ? '⏳ SUBMITTING...'
-                : txStatus === 'success' || manualSubmitted
-                  ? '✅ SCORE SUBMITTED'
-                  : '📤 SUBMIT SCORE'}
-            </button>
-            {txStatus === 'error' && txError && (
-              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
-                {txError.message}
-              </span>
-            )}
-          </div>
-        )}
 
         <BlockTray
           pieces={gameState.pieces}
