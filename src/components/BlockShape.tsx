@@ -44,9 +44,10 @@ function BlockShape({
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
-  // Responsive cell size for TRAY
+  // Responsive cell size for TRAY — derived from BOTH viewport width and
+  // height so the tray stays inside short desktop viewports too.
   const trayCellSize = typeof window !== 'undefined'
-    ? Math.max(24, Math.min(32, Math.floor(window.innerWidth / 12)))
+    ? Math.max(20, Math.min(32, Math.floor(Math.min(window.innerWidth / 12, window.innerHeight / 22))))
     : size;
 
   const getGridStyle = (sz: number): React.CSSProperties => ({
