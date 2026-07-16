@@ -14,6 +14,27 @@ import ComboEffect from "./components/ComboEffect.js";
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
 
+// ── Board geometry ─────────────────────────────────────────────
+// Pointer→cell mapping must account for the board's CSS padding and grid
+// gap; using plain rect.width/8 drifts up to ~26px by the board edge.
+// Measured from computed styles so future CSS tweaks don't skew the math.
+interface BoardMetrics {
+  left: number;  // x of the first cell's left edge (rect.left + padding)
+  top: number;   // y of the first cell's top edge
+  cell: number;  // rendered cell size in px
+  pitch: number; // cell + gap — distance between cell origins
+}
+
+function measureBoard(el: HTMLElement): BoardMetrics {
+  const rect = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const padX = parseFloat(cs.paddingLeft) || 0;
+  const padY = parseFloat(cs.paddingTop) || 0;
+  const gap = parseFloat(cs.columnGap) || 0;
+  const cell = (rect.width - 2 * padX - 7 * gap) / 8;
+  return { left: rect.left + padX, top: rect.top + padY, cell, pitch: cell + gap };
+}
+
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("wallet");
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -43,11 +64,20 @@ export default function App() {
   const dragPieceRef = useRef<BlockPiece | null>(null);
   const grabOffsetRef = useRef<{ row: number; col: number }>({ row: 0, col: 0 });
   const boardCellSizeRef = useRef(28);
-  const boardRectRef = useRef<DOMRect | null>(null);
+  const boardMetricsRef = useRef<BoardMetrics | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const [gameState, actions] = useGameState(isPaused);
   const boardRef = useRef<HTMLDivElement>(null);
+
+  // Cached board metrics — di-invalidate saat resize, dihitung lazy saat input
+  const getBoardMetrics = useCallback((): BoardMetrics | null => {
+    if (!boardMetricsRef.current && boardRef.current) {
+      boardMetricsRef.current = measureBoard(boardRef.current);
+      boardCellSizeRef.current = boardMetricsRef.current.cell;
+    }
+    return boardMetricsRef.current;
+  }, []);
 
   // Input gate: block placement while a clear animation is in flight (H2)
   const isClearing =
@@ -71,10 +101,10 @@ export default function App() {
     }
   }, [gameState.phase, gameState.timeLeft, gameState.mode]);
 
-  // Invalidate cached board rect on resize biar cell size tetap akurat
+  // Invalidate cached board metrics on resize biar cell mapping tetap akurat
   useEffect(() => {
     function onResize() {
-      boardRectRef.current = null;
+      boardMetricsRef.current = null;
       boardCellSizeRef.current = 28;
     }
     window.addEventListener("resize", onResize);
@@ -102,13 +132,8 @@ export default function App() {
       const piece = gameState.pieces.find((p): p is BlockPiece => p !== null && p.id === selectedPieceId);
       if (!piece) return;
 
-      let rect = boardRectRef.current;
-      if (!rect) {
-        rect = boardRef.current.getBoundingClientRect();
-        boardRectRef.current = rect;
-        boardCellSizeRef.current = rect.width / 8;
-      }
-      const cellSize = boardCellSizeRef.current;
+      const m = getBoardMetrics();
+      if (!m) return;
       const clientX = e.clientX;
       const clientY = e.clientY;
 
@@ -116,8 +141,8 @@ export default function App() {
       const anchorRow = Math.floor((piece.shape.length - 1) / 2);
       const anchorCol = Math.floor(((piece.shape[0]?.length ?? 1) - 1) / 2);
 
-      const col = Math.floor((clientX - rect.left) / cellSize) - anchorCol;
-      const row = Math.floor((clientY - rect.top) / cellSize) - anchorRow;
+      const col = Math.floor((clientX - m.left) / m.pitch) - anchorCol;
+      const row = Math.floor((clientY - m.top) / m.pitch) - anchorRow;
       const pos = { row, col };
 
       if (canPlace(gridRef.current, piece.shape, pos)) {
@@ -125,7 +150,7 @@ export default function App() {
         setSelectedPieceId(null);
       }
     },
-    [selectedPieceId, gameState.pieces, actions, isPaused, isClearing],
+    [selectedPieceId, gameState.pieces, actions, isPaused, isClearing, getBoardMetrics],
   );
 
   const handleDragStart = useCallback(
@@ -141,21 +166,21 @@ export default function App() {
       }
 
       if (boardRef.current) {
-        const rect = boardRef.current.getBoundingClientRect();
-        boardCellSizeRef.current = rect.width / 8;
-        // FIX: Save rect ke ref biar handleDragMove bisa pakai
-        boardRectRef.current = rect;
+        // FIX: Save metrics ke ref biar handleDragMove bisa pakai
+        boardMetricsRef.current = measureBoard(boardRef.current);
+        boardCellSizeRef.current = boardMetricsRef.current.cell;
       }
       isDraggingRef.current = true;
       dragPieceRef.current = piece;
       grabOffsetRef.current = { row: anchorRow, col: anchorCol };
-      const cellSize = boardCellSizeRef.current;
+      const m = boardMetricsRef.current;
+      const cell = m ? m.cell : boardCellSizeRef.current;
       const grab = grabOffsetRef.current;
       setDragState({
         piece,
         pos: {
-          x: clientX - grab.col * cellSize - cellSize / 2,
-          y: clientY - grab.row * cellSize - cellSize / 2,
+          x: clientX - grab.col * (cell + 1) - cell / 2,
+          y: clientY - grab.row * (cell + 1) - cell / 2,
         },
         ghost: null,
         ghostValid: false,
@@ -167,21 +192,20 @@ export default function App() {
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
       if (isPaused || isClearing) return;
-      if (!isDraggingRef.current || !dragPieceRef.current || !boardRectRef.current) return;
-      
+      if (!isDraggingRef.current || !dragPieceRef.current || !boardMetricsRef.current) return;
+
       // FIX: Direct update tanpa RAF untuk responsiveness maksimal
       const piece = dragPieceRef.current;
       const grab = grabOffsetRef.current;
-      const rect = boardRectRef.current;
-      const cellSize = boardCellSizeRef.current;
+      const m = boardMetricsRef.current;
 
-      const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
-      const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
+      const col = Math.floor((clientX - m.left) / m.pitch) - grab.col;
+      const row = Math.floor((clientY - m.top) / m.pitch) - grab.row;
       const pos = { row, col };
 
       const dragPos = {
-        x: clientX - grab.col * cellSize - cellSize / 2,
-        y: clientY - grab.row * cellSize - cellSize / 2,
+        x: clientX - grab.col * (m.cell + 1) - m.cell / 2,
+        y: clientY - grab.row * (m.cell + 1) - m.cell / 2,
       };
 
       const isValid = canPlace(gridRef.current, piece.shape, pos);
@@ -218,20 +242,11 @@ export default function App() {
       setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
 
       if (wasDragging && piece) {
-        let rect = boardRectRef.current;
-        if (!rect) {
-          // Fallback: recalculate rect kalau null (edge case resize)
-          if (boardRef.current) {
-            rect = boardRef.current.getBoundingClientRect();
-            boardRectRef.current = rect;
-          } else {
-            return;
-          }
-        }
-        
-        const cellSize = boardCellSizeRef.current;
-        const col = Math.floor((clientX - rect.left) / cellSize) - grab.col;
-        const row = Math.floor((clientY - rect.top) / cellSize) - grab.row;
+        const m = getBoardMetrics();
+        if (!m) return;
+
+        const col = Math.floor((clientX - m.left) / m.pitch) - grab.col;
+        const row = Math.floor((clientY - m.top) / m.pitch) - grab.row;
         const pos = { row, col };
 
         // Pakai gridRef.current untuk consistency
@@ -240,7 +255,7 @@ export default function App() {
         }
       }
     },
-    [actions, isPaused, isClearing],
+    [actions, isPaused, isClearing, getBoardMetrics],
   );
 
 
