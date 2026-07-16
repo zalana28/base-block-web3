@@ -123,18 +123,16 @@ function BlockShape({
   const glow = GLOW_MAP[piece.color] ?? 'rgba(255,255,255,0.2)';
   const bg = COLOR_MAP[piece.color] ?? 'transparent';
 
-  // Tray cells
+  // Tray cells — same HD beveled look as the board via .hd-block + --c
   const trayCells = piece.shape.map((row, r) =>
     row.map((filled, c) => (
       <div
         key={`${r}-${c}`}
-        className={`block-shape-cell${filled ? ' filled' : ''}`}
+        className={`block-shape-cell${filled ? ' hd-block' : ''}`}
         style={{
           width: trayCellSize,
           height: trayCellSize,
-          background: filled ? bg : 'transparent',
-          borderRadius: 4,
-          boxShadow: filled ? `0 0 8px ${glow}, 0 2px 6px rgba(0,0,0,0.35)` : undefined,
+          ...(filled ? ({ '--c': bg } as React.CSSProperties) : {}),
         }}
       />
     )),
@@ -171,13 +169,11 @@ function BlockShape({
         row.map((filled, c) => (
           <div
             key={`${r}-${c}`}
-            className={`block-shape-cell${filled ? ' filled' : ''}`}
+            className={`block-shape-cell${filled ? ' hd-block' : ''}`}
             style={{
               width: boardCellSize,
               height: boardCellSize,
-              background: filled ? bg : 'transparent',
-              borderRadius: 4,
-              boxShadow: filled ? `0 0 12px ${glow}, 0 2px 8px rgba(0,0,0,0.5)` : undefined,
+              ...(filled ? ({ '--c': bg } as React.CSSProperties) : {}),
             }}
           />
         )),
