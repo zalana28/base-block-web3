@@ -401,6 +401,28 @@ export default function App() {
 
         <ComboEffect combo={gameState.combo} />
 
+        {gameState.mode === 0 && gameState.score > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '8px 0' }}>
+            <button
+              className="primary"
+              onClick={handleSubmitScore}
+              disabled={txStatus === 'pending' || txStatus === 'confirming'}
+              style={{ fontSize: 12, padding: '8px 20px' }}
+            >
+              {txStatus === 'pending' || txStatus === 'confirming'
+                ? '⏳ SUBMITTING...'
+                : txStatus === 'success'
+                  ? '✅ SUBMITTED · SUBMIT AGAIN?'
+                  : '📤 SUBMIT SCORE'}
+            </button>
+            {txStatus === 'error' && txError && (
+              <span style={{ fontSize: 10, color: 'var(--danger)' }}>
+                {txError.message}
+              </span>
+            )}
+          </div>
+        )}
+
         <BlockTray
           pieces={gameState.pieces}
           draggedPieceId={dragState.piece?.id ?? null}

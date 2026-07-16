@@ -42,27 +42,21 @@ const Cell = memo(function Cell({
   isClearing,
   isJustPlaced
 }: CellProps) {
-  let bg = 'transparent';
-  if (filled && color) {
-    bg = COLOR_MAP[color] || color;
-  } else if (isGhost) {
-    bg = isGhostValid ? 'rgba(0, 229, 255, 0.35)' : 'rgba(239, 68, 68, 0.3)';
-  }
+  // Filled cells use the shared .hd-block treatment driven by --c.
+  const colorVar = filled && color ? COLOR_MAP[color] || color : undefined;
 
   const classes = [
-    'w-full h-full rounded-[4px] transition-all duration-100',
-    filled ? 'shadow-[inset_0_1px_3px_rgba(255,255,255,0.2)]' : 'bg-slate-900/30 border border-slate-800/40',
+    'board-cell',
+    colorVar ? 'hd-block' : '',
+    !colorVar && isGhost ? (isGhostValid ? 'ghost-valid' : 'ghost-invalid') : '',
     isClearing ? 'row--clearing' : '',
     isJustPlaced ? 'block--dropping' : ''
   ].filter(Boolean).join(' ');
 
   return (
-    <div 
-      className={classes} 
-      style={{ 
-        background: bg,
-        boxShadow: filled && color ? `0 0 10px ${COLOR_MAP[color] || color}44` : undefined
-      }} 
+    <div
+      className={classes}
+      style={colorVar ? ({ '--c': colorVar } as React.CSSProperties) : undefined}
     />
   );
 });
