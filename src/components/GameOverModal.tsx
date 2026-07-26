@@ -21,7 +21,9 @@ export default function GameOverModal({
   reason, onPlayAgain, onViewLeaderboard, onSubmitScore, txStatus = 'idle', txError,
 }: Props) {
   const isTimeUp = reason === 'time-up';
-  const isNewBest = score >= bestScore && score > 0;
+  // bestScore di sini adalah bestAtStart (rekor SEBELUM run ini). Pakai '>'
+  // bukan '>=': skor yang cuma menyamai rekor bukan rekor baru.
+  const isNewBest = score > bestScore && score > 0;
   const isSubmitting = txStatus === 'pending' || txStatus === 'confirming';
 
   return (

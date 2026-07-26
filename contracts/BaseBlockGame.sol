@@ -6,21 +6,33 @@ contract BaseBlockGame {
     mapping(address => uint256) public arcadeBestScore;
     mapping(address => uint256) public arcadeHighestLevel;
     mapping(address => uint256) public totalGamesPlayed;
-    
+
+    struct ScoreEntry {
+        address player;
+        uint8 mode;
+        uint256 score;
+        uint256 level;
+        uint256 timestamp;
+    }
+
+    ScoreEntry[] public leaderboard;
+    uint256 public constant MAX_LEADERBOARD = 50;
+
     event GameStarted(address indexed player, uint8 mode, uint256 timestamp);
     event GameCompleted(address indexed player, uint8 mode, uint256 score, uint256 level, uint256 timestamp);
     event NewHighScore(address indexed player, uint8 mode, uint256 oldScore, uint256 newScore);
-    
+    event LeaderboardUpdated(address indexed player, uint8 mode, uint256 score, uint256 level, uint256 rank);
+
     function startGame(uint8 mode) external {
         require(mode == 0 || mode == 1, "Invalid mode");
         totalGamesPlayed[msg.sender]++;
         emit GameStarted(msg.sender, mode, block.timestamp);
     }
-    
+
     function submitScore(uint8 mode, uint256 score, uint256 level) external {
         require(mode == 0 || mode == 1, "Invalid mode");
         require(score > 0, "Score must be > 0");
-        
+
         if (mode == 0) {
             uint256 oldScore = classicBestScore[msg.sender];
             if (score > oldScore) {
@@ -33,14 +45,51 @@ contract BaseBlockGame {
                 arcadeBestScore[msg.sender] = score;
                 emit NewHighScore(msg.sender, mode, oldScore, score);
             }
-            if (mode == 1 && level > arcadeHighestLevel[msg.sender]) {
+            if (level > arcadeHighestLevel[msg.sender]) {
                 arcadeHighestLevel[msg.sender] = level;
             }
         }
-        
+
+        _insertLeaderboard(msg.sender, mode, score, level);
         emit GameCompleted(msg.sender, mode, score, level, block.timestamp);
     }
-    
+
+    function _insertLeaderboard(address player, uint8 mode, uint256 score, uint256 level) internal {
+        for (uint256 i = 0; i < leaderboard.length; i++) {
+            if (score > leaderboard[i].score) {
+                if (leaderboard.length >= MAX_LEADERBOARD) {
+                    for (uint256 j = leaderboard.length - 1; j > i; j--) {
+                        leaderboard[j] = leaderboard[j - 1];
+                    }
+                    leaderboard[i] = ScoreEntry(player, mode, score, level, block.timestamp);
+                } else {
+                    leaderboard.push(ScoreEntry(address(0), 0, 0, 0, 0));
+                    for (uint256 j = leaderboard.length - 1; j > i; j--) {
+                        leaderboard[j] = leaderboard[j - 1];
+                    }
+                    leaderboard[i] = ScoreEntry(player, mode, score, level, block.timestamp);
+                }
+                emit LeaderboardUpdated(player, mode, score, level, i);
+                return;
+            }
+        }
+
+        if (leaderboard.length < MAX_LEADERBOARD) {
+            leaderboard.push(ScoreEntry(player, mode, score, level, block.timestamp));
+            emit LeaderboardUpdated(player, mode, score, level, leaderboard.length - 1);
+        }
+    }
+
+    function getTopScores(uint256 count) external view returns (ScoreEntry[] memory) {
+        uint256 len = leaderboard.length;
+        uint256 resultLen = count > len ? len : count;
+        ScoreEntry[] memory result = new ScoreEntry[](resultLen);
+        for (uint256 i = 0; i < resultLen; i++) {
+            result[i] = leaderboard[i];
+        }
+        return result;
+    }
+
     function getPlayerStats(address player) external view returns (
         uint256 classicScore,
         uint256 arcadeScore,

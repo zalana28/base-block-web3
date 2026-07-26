@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import type { BlockPiece, Position } from "./lib/game/types.js";
+import { useAccount } from "wagmi";
+import type { BlockPiece, Grid, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
@@ -25,6 +26,26 @@ interface BoardMetrics {
   pitch: number; // cell + gap — distance between cell origins
 }
 
+// Snap "magnetis": kalau sel tepat di bawah jari tidak valid, cari
+// posisi valid terdekat dalam radius 1 sel. Tanpa ini pemain harus
+// menaruh keping presisi piksel — penyebab utama rasa "susah nempel".
+// Urutannya dari jarak terdekat, jadi hasilnya selalu yang paling wajar.
+const SNAP_OFFSETS: Position[] = [
+  { row: 0, col: 0 },
+  { row: 0, col: -1 }, { row: 0, col: 1 },
+  { row: -1, col: 0 }, { row: 1, col: 0 },
+  { row: -1, col: -1 }, { row: -1, col: 1 },
+  { row: 1, col: -1 }, { row: 1, col: 1 },
+];
+
+function snapToValid(grid: Grid, shape: BlockPiece['shape'], pos: Position): Position | null {
+  for (const off of SNAP_OFFSETS) {
+    const candidate = { row: pos.row + off.row, col: pos.col + off.col };
+    if (canPlace(grid, shape, candidate)) return candidate;
+  }
+  return null;
+}
+
 function measureBoard(el: HTMLElement): BoardMetrics {
   const rect = el.getBoundingClientRect();
   const cs = getComputedStyle(el);
@@ -44,6 +65,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
+  const { address } = useAccount();
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -66,8 +88,13 @@ export default function App() {
   const boardCellSizeRef = useRef(28);
   const boardMetricsRef = useRef<BoardMetrics | null>(null);
   const rafRef = useRef<number | null>(null);
+  const pendingPointerRef = useRef<{ x: number; y: number } | null>(null);
+  // Pemilik drag yang sedang jalan. Slot drag di sini cuma satu, jadi tanpa
+  // penanda pointerId jari kedua bisa menyetir drag jari pertama: keping
+  // salah mendarat di lokasi jari yang lain, dan keping satunya hilang.
+  const dragPointerIdRef = useRef<number | null>(null);
 
-  const [gameState, actions] = useGameState(isPaused);
+  const [gameState, actions] = useGameState(isPaused, address ?? 'anon');
   const boardRef = useRef<HTMLDivElement>(null);
 
   // Cached board metrics — di-invalidate saat resize, dihitung lazy saat input
@@ -145,8 +172,9 @@ export default function App() {
       const row = Math.floor((clientY - m.top) / m.pitch) - anchorRow;
       const pos = { row, col };
 
-      if (canPlace(gridRef.current, piece.shape, pos)) {
-        actions.placePiece(piece, pos);
+      const snapped = snapToValid(gridRef.current, piece.shape, pos);
+      if (snapped) {
+        actions.placePiece(piece, snapped);
         setSelectedPieceId(null);
       }
     },
@@ -154,8 +182,11 @@ export default function App() {
   );
 
   const handleDragStart = useCallback(
-    (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => {
+    (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number, pointerId: number) => {
       if (isPaused || isClearing) return;
+      // Jari pertama yang menang; jari kedua diabaikan sampai drag selesai.
+      if (isDraggingRef.current && dragPointerIdRef.current !== null
+          && dragPointerIdRef.current !== pointerId) return;
       // Clear any tap selection when user starts dragging
       setSelectedPieceId(null);
 
@@ -171,6 +202,7 @@ export default function App() {
         boardCellSizeRef.current = boardMetricsRef.current.cell;
       }
       isDraggingRef.current = true;
+      dragPointerIdRef.current = pointerId;
       dragPieceRef.current = piece;
       grabOffsetRef.current = { row: anchorRow, col: anchorCol };
       const m = boardMetricsRef.current;
@@ -190,48 +222,78 @@ export default function App() {
   );
 
   const handleDragMove = useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, pointerId: number) => {
       if (isPaused || isClearing) return;
+      if (dragPointerIdRef.current !== pointerId) return;
       if (!isDraggingRef.current || !dragPieceRef.current || !boardMetricsRef.current) return;
 
-      // FIX: Direct update tanpa RAF untuk responsiveness maksimal
-      const piece = dragPieceRef.current;
-      const grab = grabOffsetRef.current;
-      const m = boardMetricsRef.current;
+      // Pointermove bisa menembak 120x/detik di HP. Versi lama memanggil
+      // setDragState di SETIAP event, jadi React me-render ulang seluruh
+      // layar puluhan kali per frame — itu sumber patah-patahnya.
+      // Sekarang posisi terakhir disimpan di ref dan diproses maksimal
+      // sekali per frame animasi.
+      pendingPointerRef.current = { x: clientX, y: clientY };
+      if (rafRef.current !== null) return;
 
-      const col = Math.floor((clientX - m.left) / m.pitch) - grab.col;
-      const row = Math.floor((clientY - m.top) / m.pitch) - grab.row;
-      const pos = { row, col };
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const pointer = pendingPointerRef.current;
+        const piece = dragPieceRef.current;
+        const m = boardMetricsRef.current;
+        if (!pointer || !piece || !m || !isDraggingRef.current) return;
 
-      const dragPos = {
-        x: clientX - grab.col * (m.cell + 1) - m.cell / 2,
-        y: clientY - grab.row * (m.cell + 1) - m.cell / 2,
-      };
+        const grab = grabOffsetRef.current;
+        const rawCol = Math.floor((pointer.x - m.left) / m.pitch) - grab.col;
+        const rawRow = Math.floor((pointer.y - m.top) / m.pitch) - grab.row;
 
-      const isValid = canPlace(gridRef.current, piece.shape, pos);
+        // Bayangan menampilkan posisi hasil snap, bukan posisi mentah —
+        // jadi yang dilihat pemain persis sama dengan yang akan terjadi
+        // saat jari dilepas.
+        const snapped = snapToValid(gridRef.current, piece.shape, { row: rawRow, col: rawCol });
+        const ghost = snapped ?? { row: rawRow, col: rawCol };
 
-      setDragState((prev) => ({
-        ...prev,
-        pos: dragPos,
-        ghost: pos,
-        ghostValid: isValid,
-      }));
+        // pos yang disimpan adalah OFFSET translate3d (clientX dikurangi
+        // anchor), bukan clientX mentah. Jadi bandingkan offset lawan
+        // offset. Versi sebelumnya membandingkan offset lawan clientX:
+        // guard tidak pernah kena saat jari diam (jadi render tetap jalan
+        // tiap frame) dan malah kena saat jari geser ke kiri (jadi satu
+        // frame membeku) — kebalikan dari yang dimaksud.
+        const next = {
+          x: pointer.x - grab.col * (m.cell + 1) - m.cell / 2,
+          y: pointer.y - grab.row * (m.cell + 1) - m.cell / 2,
+        };
+
+        setDragState((prev) => {
+          const samePos = prev.ghost && prev.ghost.row === ghost.row && prev.ghost.col === ghost.col;
+          if (samePos && prev.ghostValid === Boolean(snapped) && prev.pos
+              && Math.abs(prev.pos.x - next.x) < 0.5
+              && Math.abs(prev.pos.y - next.y) < 0.5) {
+            return prev; // tidak ada perubahan berarti — lewati render
+          }
+          return { ...prev, pos: next, ghost, ghostValid: Boolean(snapped) };
+        });
+      });
     },
     [isPaused, isClearing],
   );
 
 
   const handleDragEnd = useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, pointerId: number) => {
       if (isPaused || isClearing) return;
+      // Jari yang bukan pemilik tidak boleh menaruh keping MAUPUN
+      // membatalkan drag yang sedang berjalan.
+      if (dragPointerIdRef.current !== pointerId) return;
       // FIX: Cleanup drag state FIRST sebelum placePiece biar ga freeze
       const wasDragging = isDraggingRef.current;
       const piece = dragPieceRef.current;
       const grab = grabOffsetRef.current;
-      
+
       isDraggingRef.current = false;
+      dragPointerIdRef.current = null;
       dragPieceRef.current = null;
       grabOffsetRef.current = { row: 0, col: 0 };
+      pendingPointerRef.current = null;
       
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
@@ -247,11 +309,10 @@ export default function App() {
 
         const col = Math.floor((clientX - m.left) / m.pitch) - grab.col;
         const row = Math.floor((clientY - m.top) / m.pitch) - grab.row;
-        const pos = { row, col };
 
-        // Pakai gridRef.current untuk consistency
-        if (canPlace(gridRef.current, piece.shape, pos)) {
-          actions.placePiece(piece, pos);
+        const snapped = snapToValid(gridRef.current, piece.shape, { row, col });
+        if (snapped) {
+          actions.placePiece(piece, snapped);
         }
       }
     },
@@ -334,7 +395,7 @@ export default function App() {
         {ambientBackground}
         <GameOverModal
           score={gameState.score}
-          bestScore={gameState.bestScore}
+          bestScore={gameState.bestAtStart}
           mode={gameState.mode}
           level={gameState.level}
           reason={gameOverReason}
@@ -353,21 +414,20 @@ export default function App() {
       {ambientBackground}
       <div className="game-screen">
         <div className="game-header">
-          <div className="game-header-row">
-            <div className="game-header-text">
-              <div className="game-header-title">BASE BLOCK</div>
-              <div className="game-header-subtitle">ON BASE NETWORK</div>
-            </div>
-            <div className="game-header-actions">
-              <button
-                className="icon-btn settings-btn"
-                onClick={() => setShowSettings((s) => !s)}
-                aria-label="Settings"
-              >
-                ⚙️
-              </button>
-            </div>
-          </div>
+          {/* Judul memakai lebar penuh dan tombol gear di-absolute, jadi
+              "BASE BLOCK" benar-benar di tengah layar. Sebelumnya judul
+              hanya di tengah ruang SISA di kiri gear, sehingga tampak
+              meleset ke kiri. Subtitle "ON BASE NETWORK" dihapus dari
+              layar main — sudah ada di landing, dan di sini cuma memakan
+              tinggi yang dibutuhkan papan dan tray. */}
+          <div className="game-header-title">BASE BLOCK</div>
+          <button
+            className="icon-btn settings-btn"
+            onClick={() => setShowSettings((s) => !s)}
+            aria-label="Settings"
+          >
+            ⚙️
+          </button>
 
           {showSettings && (
             <div className="settings-dropdown">

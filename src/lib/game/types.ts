@@ -32,6 +32,7 @@ export interface GameState {
   nextPieces: (BlockPiece | null)[];
   score: number;
   bestScore: number;
+  bestAtStart: number;
   combo: number;
   maxCombo: number;
   streak: number;

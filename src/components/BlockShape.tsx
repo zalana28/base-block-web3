@@ -1,18 +1,23 @@
 import { useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import type { BlockPiece } from '../lib/game/types.js';
+import { PIECE_GAP } from '../hooks/useTrayMetrics.js';
 
 interface Props {
   piece: BlockPiece;
   size?: number;
   boardCellSize?: number;
+  /** Kotak jatah dari BlockTray — keping menyesuaikan diri ke dalamnya. */
+  slotW?: number;
+  slotH?: number;
+  maxCell?: number;
   isDraggable?: boolean;
   isDragging?: boolean;
   isSelected?: boolean;
   dragPos?: { x: number; y: number } | null;
-  onDragStart?: (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number) => void;
-  onDragMove?: (clientX: number, clientY: number) => void;
-  onDragEnd?: (clientX: number, clientY: number) => void;
+  onDragStart?: (piece: BlockPiece, anchorRow: number, anchorCol: number, clientX: number, clientY: number, pointerId: number) => void;
+  onDragMove?: (clientX: number, clientY: number, pointerId: number) => void;
+  onDragEnd?: (clientX: number, clientY: number, pointerId: number) => void;
   onSelectPiece?: (pieceId: string | null) => void;
 }
 
@@ -34,27 +39,33 @@ const TAP_THRESHOLD_PX = 4;
 const LIFT_OFFSET_Y_RATIO = 0.8; // Lift block above finger by 0.8x cellSize
 
 function BlockShape({
-  piece, size = 28, boardCellSize, isDraggable = false, isDragging = false,
+  piece, size = 28, boardCellSize, slotW, slotH, maxCell,
+  isDraggable = false, isDragging = false,
   isSelected = false, dragPos, onDragStart, onDragMove, onDragEnd, onSelectPiece,
 }: Props) {
   const isPointerDown = useRef(false);
+  const activePointerId = useRef<number | null>(null);
   const hasDragged = useRef(false);
   const startClientPos = useRef<{ x: number; y: number } | null>(null);
   const startOffset = useRef<{ x: number; y: number } | null>(null);
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
-  // Responsive cell size for TRAY — derived from BOTH viewport width and
-  // height so the tray stays inside short desktop viewports too.
-  const trayCellSize = typeof window !== 'undefined'
-    ? Math.max(20, Math.min(32, Math.floor(Math.min(window.innerWidth / 12, window.innerHeight / 22))))
-    : size;
+  // Ukuran sel dihitung dari kotak jatah slot, bukan langsung dari
+  // ukuran viewport. Keping kecil (1x1, 2x2, 3x3) tetap memakai maxCell;
+  // hanya keping yang benar-benar tidak muat — praktisnya cuma 1x5
+  // horizontal — yang mengecil. Ini yang membuat tiga keping selalu
+  // punya jarak dan tidak pernah keluar dari tray.
+  const cap = maxCell ?? size;
+  const fitW = slotW ? (slotW - PIECE_GAP * (cols - 1)) / cols : cap;
+  const fitH = slotH ? (slotH - PIECE_GAP * (rows - 1)) / rows : cap;
+  const trayCellSize = Math.max(12, Math.floor(Math.min(cap, fitW, fitH)));
 
   const getGridStyle = (sz: number): React.CSSProperties => ({
     display: 'grid',
     gridTemplateColumns: `repeat(${cols}, ${sz}px)`,
     gridTemplateRows: `repeat(${rows}, ${sz}px)`,
-    gap: '1px',
+    gap: `${PIECE_GAP}px`,
     touchAction: 'none',
   });
 
@@ -69,8 +80,13 @@ function BlockShape({
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable) return;
+    // Satu keping hanya boleh dikuasai satu jari. Tanpa ini, jari kedua
+    // ikut menyetir state drag global di App dan keping bisa mendarat di
+    // lokasi jari yang lain.
+    if (activePointerId.current !== null) return;
     e.preventDefault();
     isPointerDown.current = true;
+    activePointerId.current = e.pointerId;
     hasDragged.current = false;
     startClientPos.current = { x: e.clientX, y: e.clientY };
 
@@ -85,6 +101,7 @@ function BlockShape({
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable || !isPointerDown.current) return;
+    if (e.pointerId !== activePointerId.current) return;
 
     if (!hasDragged.current && startClientPos.current) {
       const dx = e.clientX - startClientPos.current.x;
@@ -92,27 +109,30 @@ function BlockShape({
       if (Math.hypot(dx, dy) > TAP_THRESHOLD_PX) {
         hasDragged.current = true;
         if (startOffset.current) {
-          const anchorCol = Math.floor(startOffset.current.x / trayCellSize);
-          const anchorRow = Math.floor(startOffset.current.y / trayCellSize);
+          const pitch = trayCellSize + PIECE_GAP;
+          const anchorCol = Math.floor(startOffset.current.x / pitch);
+          const anchorRow = Math.floor(startOffset.current.y / pitch);
           const ac = Math.max(0, Math.min(cols - 1, anchorCol));
           const ar = Math.max(0, Math.min(rows - 1, anchorRow));
-          onDragStart?.(piece, ar, ac, e.clientX, e.clientY);
+          onDragStart?.(piece, ar, ac, e.clientX, e.clientY, e.pointerId);
         }
       }
     }
 
     if (hasDragged.current) {
-      onDragMove?.(e.clientX, e.clientY);
+      onDragMove?.(e.clientX, e.clientY, e.pointerId);
     }
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDraggable || !isPointerDown.current) return;
+    if (e.pointerId !== activePointerId.current) return;
     isPointerDown.current = false;
+    activePointerId.current = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
 
     if (hasDragged.current) {
-      onDragEnd?.(e.clientX, e.clientY);
+      onDragEnd?.(e.clientX, e.clientY, e.pointerId);
     } else {
       onSelectPiece?.(piece.id);
     }
