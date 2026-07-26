@@ -249,7 +249,12 @@ html, body {
   pointer-events: none;
 }
 
-/* Landing screen layout */
+/* ── Landing screen layout ───────────────────────────────────────
+   Satu kolom "stage" menggerakkan seluruh komposisi: judul diukur dari
+   lebar kolom (container query), tombol menyamai kolom itu. Sebelumnya
+   ukuran huruf datang dari vw yang tidak tahu lebar wadahnya, jadi judul
+   dan subtitle bisa lebih lebar dari kolomnya lalu patah di tempat acak —
+   berbeda-beda per device dan itu yang bikin tampilan terasa tidak rapi. */
 .landing-shell {
   position: relative;
   z-index: 2;
@@ -259,25 +264,47 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: clamp(1rem, 5vw, 2rem);
+  padding: clamp(1rem, 4vw, 2.5rem);
   text-align: center;
 }
 
 .landing-content {
-  width: 100%;
-  max-width: 26rem;
+  /* Lebar naik bertahap hp → tablet → desktop, tapi juga dibatasi tinggi
+     (78svh) supaya layar pendek/landscape tidak dapat judul yang memakan
+     seluruh layar. Angka ini yang jadi 100cqw untuk anak-anaknya. */
+  width: min(100%, clamp(20rem, 76vw, 44rem), 78svh);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
+  gap: clamp(0.75rem, 3svh, 2.25rem);
+}
+
+/* Tombol .secondary dan .mode-card cuma 3-4% putih, jadi blok ambient yang
+   lewat di belakangnya tembus dan terbaca seperti artefak — makin sering
+   sejak tombol selebar kolom. Beri dasar gelap pekat di landing saja.
+   :not(:hover) supaya tint hover asli tetap menang; tabrakan ini cuma
+   terjadi di layar sempit (kolom hampir selebar viewport, tempat blok
+   ambient berada) yang semuanya perangkat sentuh tanpa hover. */
+.landing-content .landing-actions > button.secondary:not(:hover),
+.landing-content .landing-menu > button.secondary:not(:hover),
+.landing-content .landing-footer-actions > button.secondary:not(:hover),
+.landing-content .mode-card:not(:hover) {
+  /* Warna dasar pekat + tint putih tipis sebagai layer terpisah, jadi kesan
+     kaca aslinya tetap ada dan tidak sekadar tertimpa warna gelap. */
+  background-color: rgba(7, 13, 30, 0.92);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04));
 }
 
 .landing-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.875rem;
-  font-size: 0.625rem;
+  gap: 0.5em;
+  padding: 0.4em 0.9em;
+  /* Ikut skala kolom seperti judul, kalau tidak di desktop judulnya 64px
+     sementara badge tetap 10px dan komposisinya terasa timpang. Floor
+     0.625rem = ukuran lama, jadi di HP tidak ada yang berubah. */
+  font-size: clamp(0.625rem, calc(100cqw / 52), 0.8125rem);
   letter-spacing: 0.1em;
   color: var(--base-cyan);
   background: rgba(0, 229, 255, 0.08);
@@ -288,8 +315,9 @@ html, body {
 }
 
 .landing-badge .dot {
-  width: 0.375rem;
-  height: 0.375rem;
+  width: 0.6em;
+  height: 0.6em;
+  flex-shrink: 0;
   border-radius: 50%;
   background: var(--base-cyan);
   box-shadow: 0 0 8px var(--base-cyan);
@@ -297,10 +325,20 @@ html, body {
 }
 
 .landing-title {
-  font-size: clamp(2rem, 11vw, 3.25rem);
+  /* Fallback untuk mesin tanpa container query. */
+  font-size: clamp(1.75rem, 7.2vw, 3.75rem);
+  /* Press Start 2P monospace: "BASE BLOCK" persis 10 advance + 10
+     letter-spacing 0.04em = 10.4em, plus text-indent 0.02em di bawah.
+     Membagi lebar kolom dengan rasio itu bikin judul mengisi kolom pas
+     dan tidak pernah patah — di viewport mana pun. */
+  font-size: clamp(1.25rem, calc(100cqw / 10.5), 4rem);
   line-height: 1.05;
   margin: 0;
   letter-spacing: 0.04em;
+  /* letter-spacing menyisakan satu spasi di belakang glif terakhir, jadi
+     tintanya jatuh setengah spasi di kiri titik tengah. Bayar persis. */
+  text-indent: 0.02em;
+  white-space: nowrap;
   text-transform: uppercase;
   background: linear-gradient(180deg, #ffffff 0%, var(--base-cyan) 60%, var(--base-blue) 100%);
   -webkit-background-clip: text;
@@ -311,11 +349,22 @@ html, body {
 }
 
 .landing-subtitle {
-  font-size: clamp(0.75rem, 3.6vw, 1rem);
-  line-height: 1.5;
+  /* 30 karakter x 1.08em = 32.4em; /34 menyisakan sedikit ruang. */
+  font-size: clamp(0.6875rem, calc(100cqw / 34), 1.0625rem);
+  line-height: 1.6;
   margin: 0;
   color: var(--text-dim);
   letter-spacing: 0.08em;
+}
+
+/* Dua frasa utuh. Baris boleh patah di antara keduanya, tidak pernah di
+   tengah frasa — jadi kalau tidak muat satu baris, hasilnya "Stack. Blast."
+   / "Compete on Base.", bukan kata "Base." menggantung sendirian. */
+.landing-subtitle > span {
+  display: inline-block;
+  /* Tanpa ini inline-block duduk di baseline dan menambah celah descender,
+     jadi tinggi <p> tidak kelipatan line-height dan jarak ke tombol meleset. */
+  vertical-align: top;
 }
 
 .landing-actions {
@@ -323,7 +372,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .landing-menu {
@@ -331,7 +380,22 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Cap tombol global (320px) disetel untuk chrome dalam game. Di landing
+   tombol adalah bagian dari kolom stage, jadi harus selebar kolom itu.
+   Di-scope ke .landing-content supaya panel Leaderboard/GameOver — yang
+   juga memakai .landing-actions — tidak ikut berubah. */
+.landing-content .landing-actions > button,
+.landing-content .landing-menu > button,
+.landing-content .landing-footer-actions > button {
+  width: 100%;
+  max-width: 100%;
+  /* Naik pelan mengikuti kolom. Cap 0.9375rem sengaja rendah: di mode baris
+     (>=768px) dua tombol berbagi satu kolom, dan huruf lebih besar dari ini
+     bikin "CONNECT WALLET" tidak muat lalu tombolnya turun baris. */
+  font-size: clamp(0.8125rem, calc(100cqw / 44), 0.9375rem);
 }
 
 .landing-divider {
@@ -1527,20 +1591,11 @@ p {
   }
 }
 
-/* Tablet / Desktop */
+/* Tablet / Desktop
+   Judul & subtitle sengaja tidak di-override di sini: keduanya sudah
+   diukur dari lebar kolom lewat container query, jadi override berbasis
+   lebar viewport justru yang dulu bikin judul melebihi kolomnya. */
 @media (min-width: 768px) {
-  .landing-content {
-    max-width: 34rem;
-  }
-
-  .landing-title {
-    font-size: clamp(3rem, 6vw, 4.5rem);
-  }
-
-  .landing-subtitle {
-    font-size: clamp(0.875rem, 1.4vw, 1.125rem);
-  }
-
   .feature-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -1557,10 +1612,20 @@ p {
     justify-content: center;
   }
 
+  /* Berlaku juga untuk panel Leaderboard/GameOverModal yang memakai
+     .landing-actions — jangan di-scope, itu perilaku lamanya. */
   .landing-actions button,
   .landing-menu button {
     width: auto;
     min-width: 12rem;
+  }
+
+  /* Tambahan khusus landing: lepas cap 380px dan biarkan dua tombol
+     berbagi lebar kolom secara merata. */
+  .landing-content .landing-actions > button,
+  .landing-content .landing-menu > button {
+    max-width: none;
+    flex: 1 1 12rem;
   }
 
   .panel {
@@ -1575,14 +1640,11 @@ p {
   }
 }
 
-/* Small phones (<= 360px) */
+/* Small phones (<= 360px) — ukuran huruf landing sudah ditangani container
+   query; di sini cuma rapatkan padding supaya kolom dapat lebar maksimal. */
 @media (max-width: 360px) {
-  .landing-title {
-    font-size: 1.75rem;
-  }
-
-  .landing-subtitle {
-    font-size: 0.6875rem;
+  .landing-shell {
+    padding: 0.875rem;
   }
 }
 

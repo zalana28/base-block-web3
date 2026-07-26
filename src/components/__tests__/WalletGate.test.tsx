@@ -14,10 +14,25 @@ vi.mock('../../hooks/useGameContract.js', () => ({
 
 describe('WalletGate', () => {
   it('renders BASE BLOCK title and subtitle', () => {
-    render(<WalletGate onReady={() => {}} onViewLeaderboard={() => {}} />);
+    const { container } = render(<WalletGate onReady={() => {}} onViewLeaderboard={() => {}} />);
     expect(screen.getByText('BASE BLOCK')).toBeInTheDocument();
-    expect(screen.getByText('Stack. Blast. Compete on Base.')).toBeInTheDocument();
+    // Subtitle sengaja dibagi dua span supaya baris hanya boleh patah di
+    // antara frasa. getByText hanya melihat text node langsung, jadi cek
+    // teks gabungannya lewat elemennya — itu yang dibaca screen reader.
+    expect(container.querySelector('.landing-subtitle')).toHaveTextContent(
+      'Stack. Blast. Compete on Base.',
+    );
     expect(screen.getByRole('button', { name: /connect wallet/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /leaderboard/i })).toBeInTheDocument();
+  });
+
+  it('keeps each subtitle phrase unbreakable', () => {
+    const { container } = render(<WalletGate onReady={() => {}} onViewLeaderboard={() => {}} />);
+    // Kalau frasa digabung lagi jadi satu text node, "Base." bisa menggantung
+    // sendirian di baris kedua — persis bug yang dibetulkan di sini.
+    const phrases = [...container.querySelectorAll('.landing-subtitle > span')].map(
+      (el) => el.textContent,
+    );
+    expect(phrases).toEqual(['Stack. Blast.', 'Compete on Base.']);
   });
 });
