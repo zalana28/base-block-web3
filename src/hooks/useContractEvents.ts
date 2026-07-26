@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPublicClient, http } from 'viem';
 import { base } from '../config/chain.js';
+import { GAME_CONTRACT_ABI } from '../config/contract.js';
 
 interface Entry {
   player: string;
@@ -9,137 +10,147 @@ interface Entry {
   mode: number;
 }
 
-// The deployed contract's "GameCompleted" equivalent event topic
-// Discovered from on-chain analysis of the actual deployed bytecode
-const GAME_COMPLETED_TOPIC =
-  '0x17f04e4e5fcf9d0da7e8d721dc95ea4e190310edd790a4b0513d1c8207257c1f' as const;
-
-const BLOCK_CHUNK = 5_000;     // per RPC query chunk
-const LOOKBACK_BLOCKS = 500_000; // ~3 days on Base (~2 blocks/sec)
+// Base RPC publik menerima rentang 10k blok per eth_getLogs.
+const BLOCK_CHUNK = 10_000n;
+// Base ~2 detik/blok → 0,5 blok/detik. 500.000 blok ≈ 11,6 hari.
+// JANGAN dikecilkan: angka ini menentukan ISI papan peringkat, bukan biaya
+// RPC. Mengecilkannya ke 200.000 menghapus entri pemain yang masih valid.
+// Efisiensi sudah didapat dari BLOCK_CHUNK 10k + CONCURRENCY + cache.
+const LOOKBACK_BLOCKS = 500_000n;
+// Batasi request paralel supaya tidak kena rate limit.
+const CONCURRENCY = 5;
 const MAX_TOP = 20;
+const CACHE_TTL_MS = 60_000;
 
 const client = createPublicClient({
   chain: base,
   transport: http(),
 });
 
-function decodeLog(log: { topics: string[]; data: string }): Entry | null {
-  try {
-    const { topics, data } = log;
-    if (!topics || topics.length < 2 || !data || data === '0x') return null;
+const GAME_COMPLETED_EVENT = GAME_CONTRACT_ABI.find(
+  (item) => item.type === 'event' && item.name === 'GameCompleted',
+)!;
 
-    // topic1 = indexed player address
-    const player = '0x' + topics[1].slice(-40);
+let cache: { key: string; at: number; entries: Entry[] } | null = null;
 
-    // data = abi.encode(mode, score, level, timestamp)
-    const hex = data.slice(2);
-    if (hex.length < 64 * 3) return null;
-
-    const values: bigint[] = [];
-    for (let i = 0; i < hex.length; i += 64) {
-      values.push(BigInt('0x' + hex.slice(i, i + 64)));
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index]);
     }
-
-    return {
-      player,
-      mode: Number(values[0]),
-      score: Number(values[1]),
-      level: Number(values[2]),
-    };
-  } catch {
-    return null;
-  }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
-export function useContractEvents({
-  address,
-}: {
-  address: string;
-}) {
+export function useContractEvents({ address }: { address: string }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const aliveRef = useRef(true);
 
-  const fetchLeaderboard = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
-    try {
-      const currentBlock = await client.getBlockNumber();
-      const fromBlock = currentBlock > BigInt(LOOKBACK_BLOCKS)
-        ? currentBlock - BigInt(LOOKBACK_BLOCKS)
-        : 0n;
+  const fetchLeaderboard = useCallback(
+    async ({ force = false }: { force?: boolean } = {}) => {
+      if (!force && cache && cache.key === address && Date.now() - cache.at < CACHE_TTL_MS) {
+        setEntries(cache.entries);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
 
-      const allLogs: { topics: string[]; data: string }[] = [];
+      setIsLoading(true);
+      setError(null);
 
-      // Fetch in chunks to respect RPC limits
-      for (
-        let start = fromBlock;
-        start <= currentBlock;
-        start += BigInt(BLOCK_CHUNK)
-      ) {
-        const end = start + BigInt(BLOCK_CHUNK) > currentBlock
-          ? currentBlock
-          : start + BigInt(BLOCK_CHUNK);
+      try {
+        const currentBlock = await client.getBlockNumber();
+        const fromBlock =
+          currentBlock > LOOKBACK_BLOCKS ? currentBlock - LOOKBACK_BLOCKS : 0n;
 
-        const logs = await client.getLogs({
-          address: address as `0x${string}`,
-          event: {
-            type: 'event',
-            name: 'GameCompleted',
-            inputs: [
-              { type: 'address', name: 'player', indexed: true },
-              { type: 'uint8', name: 'mode', indexed: false },
-              { type: 'uint256', name: 'score', indexed: false },
-              { type: 'uint256', name: 'level', indexed: false },
-              { type: 'uint256', name: 'timestamp', indexed: false },
-            ],
-          },
-          fromBlock: start,
-          toBlock: end,
-        });
+        // Bangun daftar rentang dulu, lalu ambil paralel. Versi lama
+        // menembak ~100 request berurutan tiap leaderboard dibuka.
+        const ranges: { from: bigint; to: bigint }[] = [];
+        for (let start = fromBlock; start <= currentBlock; start += BLOCK_CHUNK) {
+          const end = start + BLOCK_CHUNK - 1n > currentBlock ? currentBlock : start + BLOCK_CHUNK - 1n;
+          ranges.push({ from: start, to: end });
+        }
 
-        for (const log of logs) {
-          // Filter by our known topic0 (the deployed contract's actual topic)
-          if (
-            log.topics.length > 0 &&
-            log.topics[0].toLowerCase() === GAME_COMPLETED_TOPIC
-          ) {
-            allLogs.push({ topics: log.topics as string[], data: log.data });
+        const chunks = await mapWithConcurrency(ranges, CONCURRENCY, (range) =>
+          client.getLogs({
+            address: address as `0x${string}`,
+            event: GAME_COMPLETED_EVENT,
+            fromBlock: range.from,
+            toBlock: range.to,
+          }),
+        );
+
+        // viem sudah mendekode args dari ABI — tidak perlu parsing hex manual
+        // maupun filter topic0 tangan (viem memfilternya server-side).
+        const decoded: Entry[] = [];
+        for (const logs of chunks) {
+          for (const log of logs) {
+            const args = log.args as {
+              player?: string;
+              mode?: number;
+              score?: bigint;
+              level?: bigint;
+            };
+            if (!args?.player || args.score === undefined) continue;
+            const score = Number(args.score);
+            if (!Number.isFinite(score) || score <= 0) continue;
+            decoded.push({
+              player: args.player,
+              mode: Number(args.mode ?? 0),
+              score,
+              level: Number(args.level ?? 0),
+            });
           }
         }
-      }
 
-      // Decode logs
-      const decoded = allLogs.map(decodeLog).filter((e): e is Entry => e !== null && e.score > 0);
-
-      // Keep best score per (player, mode) pair
-      const best = new Map<string, Entry>();
-      for (const entry of decoded) {
-        const key = `${entry.player}-${entry.mode}`;
-        const existing = best.get(key);
-        if (!existing || entry.score > existing.score) {
-          best.set(key, entry);
+        const best = new Map<string, Entry>();
+        for (const entry of decoded) {
+          const key = `${entry.player.toLowerCase()}-${entry.mode}`;
+          const existing = best.get(key);
+          if (!existing || entry.score > existing.score) best.set(key, entry);
         }
+
+        const sorted = Array.from(best.values())
+          .sort((a, b) => b.score - a.score)
+          .slice(0, MAX_TOP);
+
+        cache = { key: address, at: Date.now(), entries: sorted };
+        if (aliveRef.current) setEntries(sorted);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        if (aliveRef.current) setError(msg);
+      } finally {
+        if (aliveRef.current) setIsLoading(false);
       }
-
-      // Sort by score desc, take top N
-      const sorted = Array.from(best.values())
-        .sort((a, b) => b.score - a.score)
-        .slice(0, MAX_TOP);
-
-      setEntries(sorted);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address]);
+    },
+    [address],
+  );
 
   useEffect(() => {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
 
-  return { entries, isLoading, error, refetch: fetchLeaderboard };
+  return {
+    entries,
+    isLoading,
+    error,
+    refetch: () => fetchLeaderboard({ force: true }),
+  };
 }

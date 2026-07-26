@@ -1,3 +1,17 @@
+> **⚠️ USANG — JANGAN DIPAKAI SEBAGAI RUJUKAN.**
+> Dokumen ini ditulis untuk revisi kode yang sudah lama diganti. Temuan
+> seperti "zero address", `useBuilderCodeTransaction`, `useReadContract` di
+> `Leaderboard.tsx`, dan "score tidak pernah dikirim ke smart contract"
+> sudah tidak berlaku. Temuan 1.2 juga keliru: `arcadeHighestLevel` hanya
+> bisa disentuh di cabang `mode == 1`, jadi pemain Classic tidak bisa
+> memanjat level Arcade.
+>
+> Catatan kontrak: `contracts/BaseBlockGame.sol` sempat tertinggal versi lama
+> tanpa leaderboard. Sekarang sudah diselaraskan dengan kontrak terverifikasi
+> yang ter-deploy di `0x3479A49C06d36Dde4eAC7b27b1f2EE65557898E5`, yang MEMANG
+> punya `leaderboard`, `getTopScores`, `MAX_LEADERBOARD`, dan
+> `LeaderboardUpdated`. Rujuk file itu, bukan dokumen ini.
+
 # 🔒 Audit Lengkap — Base Block Web3
 
 > Tanggal: 2026-06-26 | Branch: `feat/core-game`

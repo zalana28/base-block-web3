@@ -1,5 +1,12 @@
 export const GAME_CONTRACT_ADDRESS = '0x3479A49C06d36Dde4eAC7b27b1f2EE65557898E5' as const;
 
+// ABI ini mengikuti kontrak yang BENAR-BENAR ter-deploy di alamat di atas
+// (terverifikasi di Basescan), bukan contracts/BaseBlockGame.sol — file itu
+// sempat tertinggal versi lama tanpa leaderboard dan sudah diselaraskan
+// bersama commit ini. getTopScores / leaderboard / MAX_LEADERBOARD /
+// LeaderboardUpdated ADA on-chain; jangan dihapus dari sini.
+// Kalau kontrak diubah, regenerate dari compiler (forge inspect / solc --abi),
+// jangan diedit tangan.
 export const GAME_CONTRACT_ABI = [
   {
     'anonymous': false,

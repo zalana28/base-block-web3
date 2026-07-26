@@ -30,8 +30,16 @@ function getPlacedCells(piece: BlockPiece, pos: { row: number; col: number }): P
   return cells;
 }
 
-export function useGameState(paused = false): [GameState, Actions] {
-  const { score, bestScore, addScore, reset: resetScore } = useScore();
+export function useGameState(
+  paused = false,
+  accountScope = 'anon',
+): [GameState, Actions] {
+  // Dideklarasikan sebelum useScore supaya scope penyimpanan bisa memuat
+  // mode. Urutan hook tetap stabil, jadi ini aman.
+  const [mode, setMode] = useState<0 | 1>(0);
+  const { score, bestScore, bestAtStart, addScore, reset: resetScore } = useScore(
+    `${accountScope}:${mode}`,
+  );
   const { pieces, nextPieces, regenerate, markUsed } = useBlockGenerator();
 
   const [grid, setGrid] = useState<Grid>(createGrid());
@@ -41,7 +49,6 @@ export function useGameState(paused = false): [GameState, Actions] {
   const [totalCleared, setTotalCleared] = useState(0);
   const [totalMoves, setTotalMoves] = useState(0);
   const [phase, setPhase] = useState<'menu' | 'playing' | 'over'>('menu');
-  const [mode, setMode] = useState<0 | 1>(0);
   const [level, setLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState(ARCADE_TIME_PER_LEVEL);
   const prevLevelRef = useRef(1);
@@ -55,9 +62,6 @@ export function useGameState(paused = false): [GameState, Actions] {
   const [lastPlacedCells, setLastPlacedCells] = useState<Position[]>([]);
   const placedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Delayed game-over
-  const gameOverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const visiblePieces = useMemo(
     () => pieces.filter((p): p is BlockPiece => p !== null),
     [pieces],
@@ -67,18 +71,17 @@ export function useGameState(paused = false): [GameState, Actions] {
 
   const gameState: GameState = useMemo(
     () => ({
-      grid, pieces, nextPieces, score, bestScore,
+      grid, pieces, nextPieces, score, bestScore, bestAtStart,
       combo, maxCombo, streak, totalCleared, totalMoves, phase,
       mode, level, targetScore, timeLeft,
       clearingRows, clearingCols, lastPlacedCells,
     }),
-    [grid, pieces, nextPieces, score, bestScore, combo, maxCombo, streak, totalCleared, totalMoves, phase, mode, level, targetScore, timeLeft, clearingRows, clearingCols, lastPlacedCells],
+    [grid, pieces, nextPieces, score, bestScore, bestAtStart, combo, maxCombo, streak, totalCleared, totalMoves, phase, mode, level, targetScore, timeLeft, clearingRows, clearingCols, lastPlacedCells],
   );
 
   const startGame = useCallback((initialMode: 0 | 1 = 0) => {
     // Clean up timers
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-    if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
     if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
 
     setGrid(createGrid());
@@ -218,6 +221,16 @@ export function useGameState(paused = false): [GameState, Actions] {
     return () => clearTimeout(timer);
   }, [visiblePieces, grid, phase, clearingRows, clearingCols]);
 
+  // Bersihkan semua timer saat unmount — sebelumnya hanya dibersihkan di
+  // startGame/resetGame, jadi unmount di tengah animasi meninggalkan
+  // setTimeout yang menembak setState ke komponen yang sudah hilang.
+  useEffect(() => {
+    return () => {
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+      if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
+    };
+  }, []);
+
   const isGameOver = useCallback((): boolean => {
     if (phase !== 'playing') return false;
     if (visiblePieces.length === 0) return false;
@@ -226,14 +239,12 @@ export function useGameState(paused = false): [GameState, Actions] {
 
   const resetGame = useCallback(() => {
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-    if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
     if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
     setPhase('menu');
   }, []);
 
   const endGame = useCallback(() => {
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-    if (gameOverTimerRef.current) clearTimeout(gameOverTimerRef.current);
     if (placedTimerRef.current) clearTimeout(placedTimerRef.current);
     setPhase('over');
   }, []);
