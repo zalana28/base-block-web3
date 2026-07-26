@@ -55,7 +55,12 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
         </div>
 
         <h1 className="landing-title">BASE BLOCK</h1>
-        <p className="landing-subtitle">Stack. Blast. Compete on Base.</p>
+        {/* Dua frasa dibungkus span (inline-block) supaya baris hanya boleh
+            patah di antara keduanya — tanpa ini "Base." menggantung sendirian
+            di baris kedua begitu subtitle tidak muat. */}
+        <p className="landing-subtitle">
+          <span>Stack. Blast.</span> <span>Compete on Base.</span>
+        </p>
 
         {isConnected && address ? (
           <div className="landing-menu">
