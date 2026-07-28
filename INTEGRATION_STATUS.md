@@ -2,7 +2,8 @@
 
 ## Completed
 - Builder Code: bc_rhgm3bxx integrated
-- Smart Contract deployed: 0xf567D8C020D80AcF3735d0487452E4a3D2dE83fE
+- Smart Contract deployed: 0xEC8FB28Ec5D1F2be0d00b2293d6BF10B533fA49E
+- Smart Contract verified: ✅ Sourcify exact_match
 - Frontend hooks: useGameContract ready
 - Game fixes: freeze, auto-refill, responsive drag
 
