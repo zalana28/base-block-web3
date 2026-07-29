@@ -13,6 +13,8 @@ import Leaderboard from "./components/Leaderboard.js";
 import ComboEffect from "./components/ComboEffect.js";
 import { FEATURES } from "./config/features.js";
 import ShareButtons from "./components/ShareButtons.js";
+import FloatingScore, { type FloatScoreItem } from "./components/FloatingScore.js";
+import Particles, { type ParticleItem } from "./components/Particles.js";
 import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled } from "./lib/audio.js";
 
 type AppPhase = "wallet" | "playing" | "over";
@@ -69,6 +71,11 @@ export default function App() {
   const [sfxOn, setSfxOn] = useState(true);
   const [musicOn, setMusicOn] = useState(false);
   const [hintCells, setHintCells] = useState<Position[] | null>(null);
+  const [floatItems, setFloatItems] = useState<FloatScoreItem[]>([]);
+  const [particleItems, setParticleItems] = useState<ParticleItem[]>([]);
+  const [boardShake, setBoardShake] = useState<0 | 2 | 3>(0);
+  const [boardFlash, setBoardFlash] = useState(false);
+  const fxIdRef = useRef(0);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const { address } = useAccount();
@@ -220,6 +227,54 @@ export default function App() {
   useEffect(() => {
     if (txStatus === "success") actions.lockUndo();
   }, [txStatus, actions]);
+
+  // Area 1 juice: spawn floating score + particles + shake when lines clear.
+  // Fires when clearingRows/cols transition from empty -> non-empty.
+  const prevClearingRef = useRef(false);
+  useEffect(() => {
+    const clearing = gameState.clearingRows.length > 0 || gameState.clearingCols.length > 0;
+    if (!clearing || prevClearingRef.current) { prevClearingRef.current = clearing; return; }
+    prevClearingRef.current = clearing;
+    if (!boardRef.current) return;
+    const lines = gameState.clearingRows.length + gameState.clearingCols.length;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // floating score at board center
+    if (FEATURES.floatingScore) {
+      const r = boardRef.current.getBoundingClientRect();
+      const id = ++fxIdRef.current;
+      const text = lines > 1 ? `+${Math.round(gameState.score)} DOUBLE!` : `+${lines}`;
+      setFloatItems((prev) => [...prev, { id, text, x: r.width / 2, y: r.height / 2, big: lines > 1 }]);
+      window.setTimeout(() => setFloatItems((prev) => prev.filter((f) => f.id !== id)), 950);
+    }
+    // particles: 6-8 per cleared cell, hard cap 80
+    if (FEATURES.particles && !reduced) {
+      const r = boardRef.current.getBoundingClientRect();
+      const m = boardMetricsRef.current;
+      const cell = m ? m.cell : 28;
+      const pad = m ? m.left - r.left : 6;
+      const padT = m ? m.top - r.top : 6;
+      const cells: { x: number; y: number }[] = [];
+      for (const row of gameState.clearingRows) for (let c = 0; c < 8; c++) cells.push({ x: pad + c * (cell + 2) + cell / 2, y: padT + row * (cell + 2) + cell / 2 });
+      for (const col of gameState.clearingCols) for (let r2 = 0; r2 < 8; r2++) cells.push({ x: pad + col * (cell + 2) + cell / 2, y: padT + r2 * (cell + 2) + cell / 2 });
+      const cols = ['var(--block-cyan)', 'var(--block-green)', 'var(--block-yellow)', 'var(--block-pink)'];
+      const burst: ParticleItem[] = [];
+      for (const cellPos of cells.slice(0, 10)) { // cap cells for perf
+        for (let k = 0; k < 7; k++) {
+          if (burst.length >= 80) break;
+          burst.push({ id: ++fxIdRef.current, x: cellPos.x, y: cellPos.y, color: cols[k % cols.length] });
+        }
+      }
+      setParticleItems((prev) => [...prev.slice(-80 + burst.length), ...burst]);
+      const ids = new Set(burst.map((b) => b.id));
+      window.setTimeout(() => setParticleItems((prev) => prev.filter((pt) => !ids.has(pt.id))), 550);
+    }
+    // shake proportional (Area 1.4): 1 line = none, 2 = 180ms, 3+ = 300ms + flash
+    if (FEATURES.screenShake && !reduced && lines >= 2) {
+      setBoardShake(lines >= 3 ? 3 : 2);
+      if (lines >= 3) { setBoardFlash(true); window.setTimeout(() => setBoardFlash(false), 320); }
+      window.setTimeout(() => setBoardShake(0), lines >= 3 ? 300 : 180);
+    }
+  }, [gameState.clearingRows, gameState.clearingCols, gameState.score]);
 
   const handleSelectPiece = useCallback((pieceId: string | null) => {
     setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
@@ -574,18 +629,24 @@ export default function App() {
           timeLeft={gameState.timeLeft}
         />
 
-        <GameBoard
-          grid={gameState.grid}
-          ghostPiece={dragState.piece}
-          ghostPos={dragState.ghost}
-          isGhostValid={dragState.ghostValid}
-          clearingRows={gameState.clearingRows}
-          clearingCols={gameState.clearingCols}
-          lastPlacedCells={gameState.lastPlacedCells}
-          hintCells={hintCells}
-          boardRef={boardRef}
-          onPointerDown={handleBoardTap}
-        />
+        <div className="board-juice-wrap" style={{ position: 'relative', width: 'var(--board-size, min(92vw, 420px))', margin: '0 auto' }}>
+          <GameBoard
+            grid={gameState.grid}
+            ghostPiece={dragState.piece}
+            ghostPos={dragState.ghost}
+            isGhostValid={dragState.ghostValid}
+            clearingRows={gameState.clearingRows}
+            clearingCols={gameState.clearingCols}
+            lastPlacedCells={gameState.lastPlacedCells}
+            hintCells={hintCells}
+            shake={boardShake}
+            flash={boardFlash}
+            boardRef={boardRef}
+            onPointerDown={handleBoardTap}
+          />
+          <FloatingScore items={floatItems} />
+          <Particles particles={particleItems} />
+        </div>
 
         <ComboEffect combo={gameState.combo} />
 

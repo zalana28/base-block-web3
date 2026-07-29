@@ -17,8 +17,11 @@ export default function ComboEffect({ combo }: ComboEffectProps) {
 
   if (!visible) return null;
 
+  // Color escalation by tier (Area 1.3): green -> yellow -> orange -> magenta at 5+
+  const tier = combo >= 5 ? 'magenta' : combo >= 4 ? 'orange' : combo >= 3 ? 'yellow' : 'green';
+
   return (
-    <div className="combo-popup" key={combo}>
+    <div className={`combo-popup combo-tier-${tier}`} key={combo}>
       <span className="combo-text">COMBO</span>
       <span className="combo-count">x{combo}</span>
     </div>

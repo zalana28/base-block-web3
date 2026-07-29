@@ -10,6 +10,8 @@ interface Props {
   clearingCols?: number[];
   lastPlacedCells?: Position[];
   hintCells?: Position[] | null;
+  shake?: 0 | 2 | 3;
+  flash?: boolean;
   boardRef?: React.Ref<HTMLDivElement>;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -74,6 +76,8 @@ function GameBoard({
   clearingCols = [],
   lastPlacedCells = [],
   hintCells = null,
+  shake = 0,
+  flash = false,
   boardRef,
   onPointerDown,
 }: Props) {
@@ -102,7 +106,7 @@ function GameBoard({
     <div
       ref={boardRef}
       onPointerDown={onPointerDown}
-      className="game-board relative grid grid-cols-8 grid-rows-8 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none"
+      className={`game-board relative grid grid-cols-8 grid-rows-8 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none${shake === 2 ? ' shake-2' : ''}${shake === 3 ? ' shake-3' : ''}${flash ? ' board-flash' : ''}`}
     >
       {grid.map((row, rIdx) =>
         row.map((cell, cIdx) => {

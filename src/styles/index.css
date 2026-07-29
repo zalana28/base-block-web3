@@ -1848,3 +1848,97 @@ p {
 @media (prefers-reduced-motion: reduce) {
   .board-cell.hint-cell { animation: none; }
 }
+
+
+/* ── Area 1: juice (transform/opacity/filter only; zero layout shift) ── */
+.floating-score-layer,
+.particle-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+  overflow: hidden;
+}
+.floating-score {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: var(--frog);
+  text-shadow: 0 0 8px var(--frog-glow), 0 2px 4px rgba(0,0,0,0.6);
+  animation: floatScore 900ms ease-out forwards;
+  white-space: nowrap;
+}
+.floating-score.big {
+  font-size: 1.5rem;
+  color: var(--yellow);
+  text-shadow: 0 0 12px rgba(255,234,0,0.7), 0 0 28px rgba(255,140,0,0.5);
+}
+@keyframes floatScore {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - 70px)); }
+}
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  animation: particleFly 500ms ease-out forwards;
+}
+@keyframes particleFly {
+  0% { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.3); }
+}
+
+/* Combo color tiers (Area 1.3) */
+.combo-popup.combo-tier-green .combo-text { color: var(--frog); text-shadow: 0 0 10px var(--frog-glow); }
+.combo-popup.combo-tier-yellow .combo-text { color: var(--yellow); text-shadow: 0 0 10px rgba(255,234,0,0.65), 0 0 28px rgba(255,140,0,0.45); }
+.combo-popup.combo-tier-orange .combo-text { color: var(--block-orange); text-shadow: 0 0 12px rgba(255,140,0,0.7), 0 0 30px rgba(255,87,87,0.5); }
+.combo-popup.combo-tier-magenta .combo-text { color: var(--block-pink); text-shadow: 0 0 14px rgba(255,79,216,0.75), 0 0 34px rgba(168,85,247,0.55); }
+
+/* Screen shake + full-board flash (Area 1.4). Applied to board wrapper via class. */
+.game-board.shake-2 { animation: shake 180ms ease-in-out; }
+.game-board.shake-3 { animation: shake 300ms ease-in-out; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  20% { transform: translateX(-3px) translateY(1px); }
+  40% { transform: translateX(3px) translateY(-1px); }
+  60% { transform: translateX(-2px) translateY(2px); }
+  80% { transform: translateX(2px) translateY(-2px); }
+}
+.game-board.board-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  z-index: 20;
+  animation: boardFlash 300ms ease-out forwards;
+}
+@keyframes boardFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Staggered per-cell clear blast (Area 1.1). Cell stays in place; only
+   transform/opacity animate. Stagger via inline animation-delay. */
+.board-cell.row--clearing.staggered {
+  animation: clearBlast 260ms ease-out forwards;
+}
+@keyframes clearBlast {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  40% { transform: scale(1.25); filter: brightness(2.2); opacity: 1; }
+  100% { transform: scale(0); filter: brightness(3); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-score, .particle, .game-board.shake-2, .game-board.shake-3,
+  .game-board.board-flash::after, .board-cell.row--clearing.staggered {
+    animation: none !important;
+  }
+  .floating-score { opacity: 0; }
+  .particle { opacity: 0; }
+}
