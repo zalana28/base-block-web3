@@ -12,6 +12,7 @@ import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 import ComboEffect from "./components/ComboEffect.js";
 import { FEATURES } from "./config/features.js";
+import ShareButtons from "./components/ShareButtons.js";
 import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled } from "./lib/audio.js";
 
 type AppPhase = "wallet" | "playing" | "over";
@@ -470,6 +471,7 @@ export default function App() {
           bestScore={gameState.bestAtStart}
           mode={gameState.mode}
           level={gameState.level}
+          streak={gameState.streak}
           reason={gameOverReason}
           onPlayAgain={handlePlayAgain}
           onViewLeaderboard={() => setShowLeaderboard(true)}
@@ -604,6 +606,9 @@ export default function App() {
               <span className="classic-submit-error">
                 {txError.message}
               </span>
+            )}
+            {txStatus === 'success' && (
+              <ShareButtons score={gameState.score} streak={gameState.streak} compact />
             )}
           </div>
         )}
