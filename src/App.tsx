@@ -15,7 +15,8 @@ import { FEATURES } from "./config/features.js";
 import ShareButtons from "./components/ShareButtons.js";
 import FloatingScore, { type FloatScoreItem } from "./components/FloatingScore.js";
 import Particles, { type ParticleItem } from "./components/Particles.js";
-import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled } from "./lib/audio.js";
+import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled, sfxDenied } from "./lib/audio.js";
+import { haptic } from "./lib/haptics.js";
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
@@ -51,6 +52,24 @@ function snapToValid(grid: Grid, shape: BlockPiece['shape'], pos: Position): Pos
   return null;
 }
 
+// Area 4.2 nearest-center snap (~0.5 cell tolerance). Accept the closest valid
+// placement only if it is within ~0.75 cell of the raw target cell.
+function nearestCenterSnap(grid: Grid, shape: BlockPiece['shape'], pos: Position, cell: number, pitch: number): Position | null {
+  const rows = shape.length;
+  const cols = shape[0]?.length ?? 0;
+  let best: Position | null = null;
+  let bestDist = Infinity;
+  for (let r = 0; r <= 8 - rows; r++) {
+    for (let c = 0; c <= 8 - cols; c++) {
+      if (!canPlace(grid, shape, { row: r, col: c })) continue;
+      const d = Math.hypot((r - pos.row) * pitch, (c - pos.col) * pitch);
+      if (d < bestDist) { bestDist = d; best = { row: r, col: c }; }
+    }
+  }
+  if (best && bestDist <= pitch * 0.75) return best;
+  return null;
+}
+
 function measureBoard(el: HTMLElement): BoardMetrics {
   const rect = el.getBoundingClientRect();
   const cs = getComputedStyle(el);
@@ -75,6 +94,7 @@ export default function App() {
   const [particleItems, setParticleItems] = useState<ParticleItem[]>([]);
   const [boardShake, setBoardShake] = useState<0 | 2 | 3>(0);
   const [boardFlash, setBoardFlash] = useState(false);
+  const [highlightCells, setHighlightCells] = useState<Position[] | null>(null);
   const fxIdRef = useRef(0);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
@@ -377,8 +397,22 @@ export default function App() {
         // Bayangan menampilkan posisi hasil snap, bukan posisi mentah —
         // jadi yang dilihat pemain persis sama dengan yang akan terjadi
         // saat jari dilepas.
-        const snapped = snapToValid(gridRef.current, piece.shape, { row: rawRow, col: rawCol });
+        const snapped = FEATURES.snapTolerance
+          ? nearestCenterSnap(gridRef.current, piece.shape, { row: rawRow, col: rawCol }, m.cell, m.pitch)
+          : snapToValid(gridRef.current, piece.shape, { row: rawRow, col: rawCol });
         const ghost = snapped ?? { row: rawRow, col: rawCol };
+        if (FEATURES.rowColHighlight && snapped) {
+          const sim = gridRef.current.map((row) => row.slice());
+          for (let rr = 0; rr < piece.shape.length; rr++)
+            for (let cc = 0; cc < piece.shape[rr].length; cc++)
+              if (piece.shape[rr][cc]) sim[snapped.row + rr][snapped.col + cc] = 'red';
+          const cells: Position[] = [];
+          for (let r2 = 0; r2 < 8; r2++) if (sim[r2].every((c) => c !== null)) for (let c2 = 0; c2 < 8; c2++) cells.push({ row: r2, col: c2 });
+          for (let c2 = 0; c2 < 8; c2++) { let full = true; for (let r2 = 0; r2 < 8; r2++) if (sim[r2][c2] === null) { full = false; break; } if (full) for (let r2 = 0; r2 < 8; r2++) cells.push({ row: r2, col: c2 }); }
+          setHighlightCells(cells.length ? cells : null);
+        } else {
+          setHighlightCells(null);
+        }
 
         // pos yang disimpan adalah OFFSET translate3d (clientX dikurangi
         // anchor), bukan clientX mentah. Jadi bandingkan offset lawan
@@ -430,6 +464,7 @@ export default function App() {
 
       // Clear drag visual immediately
       setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
+      setHighlightCells(null);
 
       if (wasDragging && piece) {
         const m = getBoardMetrics();
@@ -438,9 +473,14 @@ export default function App() {
         const col = Math.floor((clientX - m.left) / m.pitch) - grab.col;
         const row = Math.floor((clientY - m.top) / m.pitch) - grab.row;
 
-        const snapped = snapToValid(gridRef.current, piece.shape, { row, col });
+        const snapped = FEATURES.snapTolerance
+          ? nearestCenterSnap(gridRef.current, piece.shape, { row, col }, m.cell, m.pitch)
+          : snapToValid(gridRef.current, piece.shape, { row, col });
         if (snapped) {
           actions.placePiece(piece, snapped);
+        } else if (FEATURES.invalidFeedback) {
+          sfxDenied();
+          haptic.denied();
         }
       }
     },
@@ -639,6 +679,7 @@ export default function App() {
             clearingCols={gameState.clearingCols}
             lastPlacedCells={gameState.lastPlacedCells}
             hintCells={hintCells}
+            highlightCells={highlightCells}
             shake={boardShake}
             flash={boardFlash}
             boardRef={boardRef}

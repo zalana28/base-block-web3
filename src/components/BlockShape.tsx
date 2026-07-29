@@ -1,4 +1,5 @@
 import { useRef, memo } from 'react';
+import { FEATURES } from '../config/features.js';
 import { createPortal } from 'react-dom';
 import type { BlockPiece } from '../lib/game/types.js';
 import { PIECE_GAP } from '../hooks/useTrayMetrics.js';
@@ -120,6 +121,9 @@ function BlockShape({
     }
 
     if (hasDragged.current) {
+      // Area 4.4: prevent the page from scrolling / pull-to-refresh mid-drag
+      // on Android tablets. pointerType touch only.
+      if (e.pointerType === 'touch') e.preventDefault();
       onDragMove?.(e.clientX, e.clientY, e.pointerId);
     }
   }
@@ -167,7 +171,8 @@ function BlockShape({
   // Floating clone — rendered via Portal to document.body
   // Uses transform: translate3d for smooth GPU positioning
   const floatCellSize = boardCellSize ?? trayCellSize;
-  const liftY = floatCellSize * LIFT_OFFSET_Y_RATIO;
+  const liftY = floatCellSize * LIFT_OFFSET_Y_RATIO
+    + (FEATURES.piecePointerOffset ? floatCellSize * 0.5 : 0); // Area 4.5 opt-in, off by default
 
   const floatingElement = (isDragging && dragPos && boardCellSize) ? (
     <div

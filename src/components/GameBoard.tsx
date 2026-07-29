@@ -10,6 +10,7 @@ interface Props {
   clearingCols?: number[];
   lastPlacedCells?: Position[];
   hintCells?: Position[] | null;
+  highlightCells?: Position[] | null;
   shake?: 0 | 2 | 3;
   flash?: boolean;
   boardRef?: React.Ref<HTMLDivElement>;
@@ -36,6 +37,7 @@ interface CellProps {
   isClearing: boolean;
   isJustPlaced: boolean;
   isHint: boolean;
+  isHighlight: boolean;
 }
 
 const Cell = memo(function Cell({
@@ -45,7 +47,8 @@ const Cell = memo(function Cell({
   isGhostValid,
   isClearing,
   isJustPlaced,
-  isHint
+  isHint,
+  isHighlight
 }: CellProps) {
   // Filled cells use the shared .hd-block treatment driven by --c.
   const colorVar = filled && color ? COLOR_MAP[color] || color : undefined;
@@ -56,7 +59,8 @@ const Cell = memo(function Cell({
     !colorVar && isGhost ? (isGhostValid ? 'ghost-valid' : 'ghost-invalid') : '',
     isClearing ? 'row--clearing' : '',
     isJustPlaced ? 'block--dropping' : '',
-    isHint ? 'hint-cell' : ''
+    isHint ? 'hint-cell' : '',
+    isHighlight ? 'highlight-cell' : ''
   ].filter(Boolean).join(' ');
 
   return (
@@ -76,6 +80,7 @@ function GameBoard({
   clearingCols = [],
   lastPlacedCells = [],
   hintCells = null,
+  highlightCells = null,
   shake = 0,
   flash = false,
   boardRef,
@@ -89,6 +94,9 @@ function GameBoard({
 
   const isHintCell = (row: number, col: number) =>
     !!hintCells && hintCells.some(c => c.row === row && c.col === col);
+
+  const isHighlightCell = (row: number, col: number) =>
+    !!highlightCells && highlightCells.some(c => c.row === row && c.col === col);
 
   const isGhostCell = (row: number, col: number) => {
     if (!ghostPiece || !ghostPos) return false;
@@ -116,6 +124,7 @@ function GameBoard({
           const clearing = isClearingCell(rIdx, cIdx);
           const justPlaced = isJustPlaced(rIdx, cIdx);
           const hint = isHintCell(rIdx, cIdx);
+          const highlight = isHighlightCell(rIdx, cIdx);
 
           return (
             <Cell
@@ -127,6 +136,7 @@ function GameBoard({
               isClearing={clearing}
               isJustPlaced={justPlaced}
               isHint={hint}
+              isHighlight={highlight}
             />
           );
         })

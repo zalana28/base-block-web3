@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createGrid } from '../grid.js';
-import type { Grid } from '../types.js';
+import type { BlockPiece, Grid } from '../types.js';
 import {
   countFullLines, countHoles, bumpiness, maxHeight, scoreBoard,
   pieceCells, findBestPlacement,
@@ -85,7 +85,7 @@ describe('hint solver', () => {
     // row 0 missing one cell at col 0
     fillRow(g, 0, [0]);
     // a 1x1 piece should be hinted to (0,0) to complete the row (1 line)
-    const piece: any = { id: 'p1', name: '1x1', shape: [[true]], color: 'red' };
+    const piece: BlockPiece = { id: 'p1', name: '1x1', shape: [[true]], color: 'red' };
     const res = findBestPlacement(g, [piece]);
     expect(res).not.toBeNull();
     expect(res!.pos).toEqual({ row: 0, col: 0 });

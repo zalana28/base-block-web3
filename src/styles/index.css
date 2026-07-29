@@ -1942,3 +1942,18 @@ p {
   .floating-score { opacity: 0; }
   .particle { opacity: 0; }
 }
+
+
+/* ── Area 4: row/col highlight + invalid piece shake (no layout shift) ── */
+.board-cell.highlight-cell {
+  background: rgba(0, 229, 255, 0.18);
+  box-shadow: inset 0 0 6px rgba(0, 229, 255, 0.4);
+}
+.floating-drag-piece.shake-piece {
+  animation: shakePiece 200ms ease-in-out;
+}
+@keyframes shakePiece {
+  0%, 100% { transform: translate3d(var(--sx, 0), var(--sy, 0), 0); }
+  25% { transform: translate3d(calc(var(--sx, 0) - 4px), var(--sy, 0), 0); }
+  75% { transform: translate3d(calc(var(--sx, 0) + 4px), var(--sy, 0), 0); }
+}
