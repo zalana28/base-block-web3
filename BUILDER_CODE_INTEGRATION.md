@@ -11,39 +11,44 @@ Base Block game sudah terintegrasi dengan **ERC-8021 Builder Code Attribution** 
 
 ## Technical Implementation
 
-### 1. Config (src/config/wagmi.ts)
+> Catatan (2026-07): `wagmi@2.19.5` belum mendukung opsi `dataSuffix` pada
+> `createConfig` (fitur config-level baru di wagmi yang lebih baru), jadi
+> atribusi Builder Code diterapkan **per-transaksi** — pendekatan "Legacy:
+> Per-Transaction Approach" di docs Base. Semua transaksi on-chain game
+> melewati satu hook (`useGameContract`), sehingga cakupan atribusi 100%.
+> Naik ke config-level `dataSuffix` bisa dilakukan saat upgrade ke wagmi
+> yang sudah mendukungnya.
+
+### 1. Suffix Builder Code (`src/config/wagmi.ts`)
 ```typescript
 import { Attribution } from "ox/erc8021";
 
-export const DATA_SUFFIX = Attribution.toDataSuffix({ 
-  codes: ["bc_rhgm3bxx"] 
+export const DATA_SUFFIX = Attribution.toDataSuffix({
+  codes: ["bc_rhgm3bxx"],
 });
 ```
 
-### 2. Transaction Hook (src/hooks/useBuilderCodeTransaction.ts)
+### 2. Transaction Hook (`src/hooks/useGameContract.ts`)
+Setiap `writeContract` (`startGame` & `submitScore`) menerima `dataSuffix`:
 ```typescript
 writeContract({
-  address,
-  abi,
-  functionName,
-  args,
-  chainId: 8453,
-  value: options?.value ?? 0n,
-  dataSuffix: DATA_SUFFIX,  // Builder code appended here
-});
-```
-
-### 3. Usage (src/components/WalletGate.tsx)
-```typescript
-const { send, status, error } = useBuilderCodeTransaction({
-  address: LEADERBOARD_ADDRESS,
-  abi: leaderboardAbi,
+  address: GAME_CONTRACT_ADDRESS,
+  abi: GAME_CONTRACT_ABI,
+  functionName: 'submitScore',
+  args: [mode, BigInt(score), BigInt(level)],
   chainId: base.id,
+  dataSuffix: DATA_SUFFIX, // Builder code appended here
 });
-
-// All transactions automatically include builder code
-send('submitScore', [score]);
 ```
+
+### 3. Cakupan
+- `startGame` dan `submitScore` adalah satu-satunya transaksi on-chain di app,
+  keduanya lewat `useGameContract`, jadi semua tx otomatis dapat atribusi.
+- Verifikasi cakupan:
+  ```bash
+  grep -rn "writeContract\|useSendTransaction\|useSendCalls" src
+  ```
+  hanya menemukan `src/hooks/useGameContract.ts`.
 
 ## How It Works
 
@@ -66,8 +71,9 @@ send('submitScore', [score]);
 ## Status
 
 ✅ **Integrated and Active**
-- Config updated dengan builder code asli
-- Hook automatically append dataSuffix
+- `DATA_SUFFIX` dibuat di `src/config/wagmi.ts` dengan builder code asli
+- `useGameContract` menempel `dataSuffix` di setiap `writeContract`
+- Cakupan 100% (tidak ada jalur transaksi on-chain lain di app)
 - Ready untuk production deployment
 
 ## Resources

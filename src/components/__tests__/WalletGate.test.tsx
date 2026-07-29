@@ -6,6 +6,7 @@ import WalletGate from '../WalletGate.js';
 vi.mock('wagmi', () => ({
   useConnect: () => ({ connectors: [], connect: vi.fn(), isPending: false }),
   useAccount: () => ({ address: undefined, isConnected: false }),
+  useDisconnect: () => ({ disconnect: vi.fn() }),
 }));
 
 vi.mock('../../hooks/useGameContract.js', () => ({

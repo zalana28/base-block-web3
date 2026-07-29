@@ -8,10 +8,10 @@
 - Game fixes: freeze, auto-refill, responsive drag
 
 ## Next Steps
-1. Mode Selection UI (Classic vs Arcade)
-2. Wire startGame() and submitScore() calls
-3. Arcade level system
-4. 3D visual upgrade
+1. ~~Mode Selection UI (Classic vs Arcade)~~ ✅ Done
+2. ~~Wire startGame() and submitScore() calls~~ ✅ Done
+3. ~~Arcade level system~~ ✅ Done
+4. 3D visual upgrade (pending)
 
-Contract Address: 0xf567D8C020D80AcF3735d0487452E4a3D2dE83fE
+Contract Address: 0xEC8FB28Ec5D1F2be0d00b2293d6BF10B533fA49E (sama dengan src/config/contract.ts)
 Network: Base Mainnet (8453)

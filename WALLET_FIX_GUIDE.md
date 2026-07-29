@@ -1,5 +1,13 @@
 # Base Account "wallet_connect unsupported" Fix Guide
 
+> **Update (2026-07):** Beberapa angka versi di panduan ini saling bertentangan
+> (mis. "wagmi harus 2.19.5 (NOT 2.13.0)" vs output yang menampilkan
+> `wagmi@2.13.0`). Yang berlaku saat ini: `wagmi@2.19.5`, `viem@2.53.1`,
+> `@coinbase/onchainkit@0.38.0`, `@base-org/account@2.5.7` (semuanya pinned
+> exact di `package.json`). Hook `useBuilderCodeTransaction` yang disebut di
+> bawah sudah tidak ada — builder code sekarang ditempel per-transaksi via
+> `useGameContract` (lihat `BUILDER_CODE_INTEGRATION.md`).
+
 ## 🔴 Problem
 
 Error `"This method is unsupported. We do not currently support wallet_connect"` muncul saat klik **Connect Wallet** dengan Base Account di mobile browser.

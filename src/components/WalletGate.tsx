@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useConnect, useAccount } from 'wagmi';
+import { useConnect, useAccount, useDisconnect } from 'wagmi';
 import { useGameContract } from '../hooks/useGameContract.js';
 
 const CONNECTOR_ICONS: Record<string, string> = {
@@ -24,6 +24,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
   const [selectedMode, setSelectedMode] = useState<0 | 1 | null>(null);
   const { connectors, connect, isPending } = useConnect();
   const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
   const { startGame, status, error } = useGameContract();
 
   function handleConnectWallet() {
@@ -110,7 +111,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
                   🏆 LEADERBOARD
                 </button>
               )}
-              <button className="secondary disconnect-btn" onClick={() => setShowModal(true)}>
+              <button className="secondary disconnect-btn" onClick={() => disconnect()}>
                 DISCONNECT
               </button>
             </div>

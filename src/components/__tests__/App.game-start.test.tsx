@@ -15,6 +15,7 @@ vi.mock('wagmi', () => ({
     address: '0x1234567890abcdef1234567890abcdef12345678',
     isConnected: true,
   }),
+  useDisconnect: () => ({ disconnect: vi.fn() }),
 }));
 
 vi.mock('../../hooks/useGameContract.js', () => ({

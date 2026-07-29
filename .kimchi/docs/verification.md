@@ -28,7 +28,8 @@ Fixed the mobile drag-and-drop accuracy bug where pieces "jump" on drop because 
 No TypeScript errors. Build succeeded.
 
 ## Test Output
-No test suite is present in this project (`npm test` not configured).
+> Catatan: laporan ini ditulis sebelum test suite ditambahkan. Saat ini proyek
+> memiliki test suite Vitest (9 file, 52 test) yang berjalan via `npm test` / `npx vitest run`.
 
 ## Lint Output
 No lint errors.
