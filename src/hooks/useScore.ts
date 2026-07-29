@@ -23,6 +23,7 @@ export function useScore(scope = 'anon'): {
   bestScore: number;
   bestAtStart: number;
   addScore: (points: number) => void;
+  setScoreValue: (n: number) => void;
   reset: () => void;
 } {
   const [score, setScore] = useState(0);
@@ -63,13 +64,17 @@ export function useScore(scope = 'anon'): {
     setScore((s) => s + points);
   }, []);
 
+  const setScoreValue = useCallback((n: number) => {
+    setScore(n);
+  }, []);
+
   const reset = useCallback(() => {
     setScore(0);
     setBestAtStart(readBest(scopeRef.current));
   }, []);
 
   return useMemo(
-    () => ({ score, bestScore, bestAtStart, addScore, reset }),
-    [score, bestScore, bestAtStart, addScore, reset],
+    () => ({ score, bestScore, bestAtStart, addScore, setScoreValue, reset }),
+    [score, bestScore, bestAtStart, addScore, setScoreValue, reset],
   );
 }

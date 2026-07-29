@@ -46,6 +46,8 @@ export interface GameState {
   clearingRows: number[];
   clearingCols: number[];
   lastPlacedCells: Position[];
+  undoCharges: number;
+  hintCharges: number;
 }
 
 export interface PlacedPiece {

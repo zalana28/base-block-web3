@@ -3,9 +3,12 @@ import { createGrid, placeBlock, clearLines, canPlace } from '../lib/game/grid.j
 import { canPlaceAnyOfPieces } from '../lib/game/validator.js';
 import { calculateScore } from '../lib/game/scoring.js';
 import type { BlockPiece, GameState, Grid, Position } from '../lib/game/types.js';
+import { FEATURES } from '../config/features.js';
+import { findBestPlacement } from '../lib/game/hint.js';
+import type { HintResult } from '../lib/game/hint.js';
 import { useScore } from './useScore.js';
 import { useBlockGenerator } from './useBlockGenerator.js';
-import { sfxPlace, sfxClear, sfxCombo, sfxLevelUp, sfxGameOver } from '../lib/audio.js';
+import { sfxPlace, sfxClear, sfxCombo, sfxLevelUp, sfxGameOver, sfxStreakLost } from '../lib/audio.js';
 import { haptic, vibrate } from '../lib/haptics.js';
 
 interface Actions {
@@ -14,6 +17,21 @@ interface Actions {
   isGameOver: () => boolean;
   resetGame: () => void;
   endGame: () => void;
+  undo: () => boolean;
+  lockUndo: () => void;
+  requestHint: () => HintResult | null;
+}
+
+interface UndoSnapshot {
+  grid: Grid;
+  pieces: (BlockPiece | null)[];
+  score: number;
+  combo: number;
+  streak: number;
+  totalCleared: number;
+  totalMoves: number;
+  level: number;
+  maxCombo: number;
 }
 
 const LEVEL_THRESHOLD = 500;
@@ -37,10 +55,10 @@ export function useGameState(
   // Dideklarasikan sebelum useScore supaya scope penyimpanan bisa memuat
   // mode. Urutan hook tetap stabil, jadi ini aman.
   const [mode, setMode] = useState<0 | 1>(0);
-  const { score, bestScore, bestAtStart, addScore, reset: resetScore } = useScore(
+  const { score, bestScore, bestAtStart, addScore, setScoreValue, reset: resetScore } = useScore(
     `${accountScope}:${mode}`,
   );
-  const { pieces, nextPieces, regenerate, markUsed } = useBlockGenerator();
+  const { pieces, nextPieces, regenerate, markUsed, restorePieces } = useBlockGenerator();
 
   const [grid, setGrid] = useState<Grid>(createGrid());
   const [combo, setCombo] = useState(0);
@@ -52,6 +70,12 @@ export function useGameState(
   const [level, setLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState(ARCADE_TIME_PER_LEVEL);
   const prevLevelRef = useRef(1);
+
+  // Undo (Area 3.1): one charge per game; snapshot before each placement.
+  const [undoCharges, setUndoCharges] = useState(1);
+  const [hintCharges, setHintCharges] = useState(3);
+  const undoSnapshotRef = useRef<UndoSnapshot | null>(null);
+  const undoUsedRef = useRef(false);
 
   // Clearing animation state
   const [clearingRows, setClearingRows] = useState<number[]>([]);
@@ -75,8 +99,9 @@ export function useGameState(
       combo, maxCombo, streak, totalCleared, totalMoves, phase,
       mode, level, targetScore, timeLeft,
       clearingRows, clearingCols, lastPlacedCells,
+      undoCharges, hintCharges,
     }),
-    [grid, pieces, nextPieces, score, bestScore, bestAtStart, combo, maxCombo, streak, totalCleared, totalMoves, phase, mode, level, targetScore, timeLeft, clearingRows, clearingCols, lastPlacedCells],
+    [grid, pieces, nextPieces, score, bestScore, bestAtStart, combo, maxCombo, streak, totalCleared, totalMoves, phase, mode, level, targetScore, timeLeft, clearingRows, clearingCols, lastPlacedCells, undoCharges, hintCharges],
   );
 
   const startGame = useCallback((initialMode: 0 | 1 = 0) => {
@@ -92,6 +117,7 @@ export function useGameState(
     regenerate(1);
     setTimeLeft(ARCADE_TIME_PER_LEVEL);
     setCombo(0); setMaxCombo(0); setStreak(0); setTotalCleared(0); setTotalMoves(0);
+    setUndoCharges(1); setHintCharges(3); undoSnapshotRef.current = null; undoUsedRef.current = false;
     setClearingRows([]); setClearingCols([]);
     setLastPlacedCells([]);
     setPhase('playing');
@@ -120,6 +146,12 @@ export function useGameState(
       if (clearingRows.length > 0 || clearingCols.length > 0) return false;
       if (!canPlace(grid, piece.shape, pos)) return false;
 
+      // Undo snapshot (Area 3.1): capture pre-placement state so one undo
+      // restores exactly one step back. Overwritten each placement; one charge.
+      if (FEATURES.undo && !undoUsedRef.current) {
+        undoSnapshotRef.current = { grid, pieces, score, combo, streak, totalCleared, totalMoves, level, maxCombo };
+      }
+
       // ── Haptic on place ──────────────────────
       haptic.place();
       sfxPlace();
@@ -135,15 +167,20 @@ export function useGameState(
       const linesCleared = result.clearedRows.length + result.clearedCols.length;
 
       const placedCellsCount = piece.shape.flat().filter(Boolean).length;
-      const points = calculateScore(
+      const base = calculateScore(
         placedCellsCount, result.cellsCleared, result.isCombo, linesCleared, streak,
       );
+      // Area 1.3 combo multiplier (flag-gated; off = today's additive score).
+      const points = FEATURES.combo && linesCleared > 0
+        ? Math.round(base * (1 + Math.min(combo + 1, 5) * 0.5))
+        : base;
 
       // ── If lines cleared, show animation first, then apply ──
       if (linesCleared > 0) {
-        // Haptic + SFX
+        const nextCombo = combo + 1;
+        // Haptic + SFX (pitch rises with combo when FEATURES.sfx; off = today)
         haptic.clear();
-        sfxClear();
+        sfxClear(FEATURES.sfx ? nextCombo : 0);
 
         // Show clearing animation
         setClearingRows(result.clearedRows);
@@ -159,7 +196,6 @@ export function useGameState(
         }, 320);
 
         setStreak((s) => s + 1);
-        const nextCombo = combo + 1;
         setCombo(nextCombo);
         setMaxCombo((m) => Math.max(m, nextCombo));
         setTotalCleared((tc) => tc + result.cellsCleared);
@@ -172,6 +208,7 @@ export function useGameState(
       } else {
         // No lines cleared — apply immediately
         setGrid(afterClear);
+        if (FEATURES.sfx && streak > 0) { sfxStreakLost(); haptic.streakLost(); }
         setStreak(0);
         setCombo(0);
       }
@@ -249,9 +286,52 @@ export function useGameState(
     setPhase('over');
   }, []);
 
+  // Undo (Area 3.1): restore the most recent pre-placement snapshot, once.
+  const undo = useCallback((): boolean => {
+    if (!FEATURES.undo) return false;
+    if (undoUsedRef.current) return false;
+    const snap = undoSnapshotRef.current;
+    if (!snap) return false;
+    if (clearingRows.length > 0 || clearingCols.length > 0) return false;
+    setGrid(snap.grid);
+    restorePieces(snap.pieces);
+    setScoreValue(snap.score);
+    setCombo(snap.combo);
+    setStreak(snap.streak);
+    setTotalCleared(snap.totalCleared);
+    setTotalMoves(snap.totalMoves);
+    setLevel(snap.level);
+    prevLevelRef.current = snap.level;
+    setMaxCombo(snap.maxCombo);
+    setClearingRows([]); setClearingCols([]);
+    setLastPlacedCells([]);
+    undoUsedRef.current = true;
+    setUndoCharges(0);
+    undoSnapshotRef.current = null;
+    return true;
+  }, [clearingRows, clearingCols, restorePieces, setScoreValue]);
+
+  // Disable undo once the score is submitted onchain (anti-cheat, Area 3.1).
+  const lockUndo = useCallback(() => {
+    if (!FEATURES.undo) return;
+    undoUsedRef.current = true;
+    setUndoCharges(0);
+  }, []);
+
+  // Hint (Area 3.2): brute-force best placement, max 3 per game.
+  const requestHint = useCallback((): HintResult | null => {
+    if (!FEATURES.hint) return null;
+    if (hintCharges <= 0) return null;
+    if (phase !== 'playing') return null;
+    if (clearingRows.length > 0 || clearingCols.length > 0) return null;
+    const res = findBestPlacement(grid, pieces);
+    if (res) setHintCharges((c) => c - 1);
+    return res;
+  }, [hintCharges, phase, grid, pieces, clearingRows, clearingCols]);
+
   const actions = useMemo(
-    () => ({ startGame, placePiece, isGameOver, resetGame, endGame }),
-    [startGame, placePiece, isGameOver, resetGame, endGame],
+    () => ({ startGame, placePiece, isGameOver, resetGame, endGame, undo, lockUndo, requestHint }),
+    [startGame, placePiece, isGameOver, resetGame, endGame, undo, lockUndo, requestHint],
   );
 
   return [gameState, actions];
