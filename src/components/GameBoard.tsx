@@ -9,6 +9,7 @@ interface Props {
   clearingRows?: number[];
   clearingCols?: number[];
   lastPlacedCells?: Position[];
+  hintCells?: Position[] | null;
   boardRef?: React.Ref<HTMLDivElement>;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -32,6 +33,7 @@ interface CellProps {
   isGhostValid: boolean;
   isClearing: boolean;
   isJustPlaced: boolean;
+  isHint: boolean;
 }
 
 const Cell = memo(function Cell({
@@ -40,7 +42,8 @@ const Cell = memo(function Cell({
   isGhost,
   isGhostValid,
   isClearing,
-  isJustPlaced
+  isJustPlaced,
+  isHint
 }: CellProps) {
   // Filled cells use the shared .hd-block treatment driven by --c.
   const colorVar = filled && color ? COLOR_MAP[color] || color : undefined;
@@ -50,7 +53,8 @@ const Cell = memo(function Cell({
     colorVar ? 'hd-block' : '',
     !colorVar && isGhost ? (isGhostValid ? 'ghost-valid' : 'ghost-invalid') : '',
     isClearing ? 'row--clearing' : '',
-    isJustPlaced ? 'block--dropping' : ''
+    isJustPlaced ? 'block--dropping' : '',
+    isHint ? 'hint-cell' : ''
   ].filter(Boolean).join(' ');
 
   return (
@@ -69,6 +73,7 @@ function GameBoard({
   clearingRows = [],
   clearingCols = [],
   lastPlacedCells = [],
+  hintCells = null,
   boardRef,
   onPointerDown,
 }: Props) {
@@ -77,6 +82,9 @@ function GameBoard({
 
   const isJustPlaced = (row: number, col: number) =>
     lastPlacedCells.some(c => c.row === row && c.col === col);
+
+  const isHintCell = (row: number, col: number) =>
+    !!hintCells && hintCells.some(c => c.row === row && c.col === col);
 
   const isGhostCell = (row: number, col: number) => {
     if (!ghostPiece || !ghostPos) return false;
@@ -103,6 +111,7 @@ function GameBoard({
           const ghost = isGhostCell(rIdx, cIdx);
           const clearing = isClearingCell(rIdx, cIdx);
           const justPlaced = isJustPlaced(rIdx, cIdx);
+          const hint = isHintCell(rIdx, cIdx);
 
           return (
             <Cell
@@ -113,6 +122,7 @@ function GameBoard({
               isGhostValid={isGhostValid}
               isClearing={clearing}
               isJustPlaced={justPlaced}
+              isHint={hint}
             />
           );
         })

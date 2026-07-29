@@ -1818,3 +1818,33 @@ p {
     animation: none !important;
   }
 }
+
+
+/* ── Area 3: pause menu + hint overlay (no layout shift) ────────── */
+.pause-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  min-width: 11rem;
+}
+.pause-menu .primary,
+.pause-menu .secondary {
+  font-size: 0.625rem;
+  padding: 0.625rem 0.75rem;
+}
+/* Hint highlight: outline + glow only (outline never affects layout). */
+.board-cell.hint-cell {
+  outline: 2px solid var(--yellow);
+  outline-offset: -2px;
+  box-shadow: 0 0 10px rgba(255, 234, 0, 0.6), inset 0 0 8px rgba(255, 234, 0, 0.25);
+  animation: hintBlink 1s ease-in-out infinite;
+}
+@keyframes hintBlink {
+  0%, 100% { outline-color: var(--yellow); box-shadow: 0 0 10px rgba(255, 234, 0, 0.6), inset 0 0 8px rgba(255, 234, 0, 0.25); }
+  50% { outline-color: transparent; box-shadow: 0 0 4px rgba(255, 234, 0, 0.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-cell.hint-cell { animation: none; }
+}

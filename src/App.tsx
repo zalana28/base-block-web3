@@ -11,6 +11,8 @@ import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 import ComboEffect from "./components/ComboEffect.js";
+import { FEATURES } from "./config/features.js";
+import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled } from "./lib/audio.js";
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
@@ -63,6 +65,9 @@ export default function App() {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [sfxOn, setSfxOn] = useState(true);
+  const [musicOn, setMusicOn] = useState(false);
+  const [hintCells, setHintCells] = useState<Position[] | null>(null);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const { address } = useAccount();
@@ -147,6 +152,73 @@ export default function App() {
       }
     };
   }, []);
+
+  // ── Area 3 QoL handlers ────────────────────────────────────────
+  const handleUndo = useCallback(() => {
+    if (actions.undo()) setShowSettings(false);
+  }, [actions]);
+
+  const handleHint = useCallback(() => {
+    const res = actions.requestHint();
+    if (!res) return;
+    setHintCells(res.cells);
+    setShowSettings(false);
+    window.setTimeout(() => setHintCells(null), 2000);
+  }, [actions]);
+
+  const toggleSfx = useCallback(() => {
+    setSfxEnabled(!sfxOn);
+    setSfxOn(!sfxOn);
+  }, [sfxOn]);
+
+  const toggleMusic = useCallback(() => {
+    setMusicEnabled(!musicOn);
+    setMusicOn(!musicOn);
+  }, [musicOn]);
+
+  // Init persisted sound prefs once (Area 3.4).
+  useEffect(() => {
+    initSoundPrefs();
+    setSfxOn(getSfxEnabled());
+    setMusicOn(getMusicEnabled());
+  }, []);
+
+  // Auto-pause when the tab loses focus (Area 3.3) — critical on Android tablets.
+  useEffect(() => {
+    function onVis() {
+      if (document.visibilityState === "hidden" && phase === "playing" && !isPaused) {
+        setIsPaused(true);
+        setShowSettings(false);
+      }
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [phase, isPaused]);
+
+  // Keyboard: Esc/Space pause, Ctrl/Cmd+Z undo, H hint (Area 3).
+  useEffect(() => {
+    if (phase !== "playing") return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" || e.key === " ") {
+        e.preventDefault();
+        setIsPaused((p) => !p);
+        setShowSettings(false);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        handleHint();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, handleUndo, handleHint]);
+
+  // Disable undo once the onchain submit succeeds (anti-cheat, Area 3.1).
+  useEffect(() => {
+    if (txStatus === "success") actions.lockUndo();
+  }, [txStatus, actions]);
 
   const handleSelectPiece = useCallback((pieceId: string | null) => {
     setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
@@ -434,6 +506,36 @@ export default function App() {
               <button className="settings-item" onClick={handlePause}>
                 {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
               </button>
+              {FEATURES.undo && (
+                <button
+                  className="settings-item"
+                  onClick={handleUndo}
+                  disabled={gameState.undoCharges <= 0}
+                  style={gameState.undoCharges <= 0 ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  ↩️ UNDO {gameState.undoCharges}/1
+                </button>
+              )}
+              {FEATURES.hint && (
+                <button
+                  className="settings-item"
+                  onClick={handleHint}
+                  disabled={gameState.hintCharges <= 0}
+                  style={gameState.hintCharges <= 0 ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  💡 HINT {gameState.hintCharges}/3
+                </button>
+              )}
+              {FEATURES.soundToggle && (
+                <button className="settings-item" onClick={toggleSfx}>
+                  {sfxOn ? '🔊 SFX: ON' : '🔇 SFX: OFF'}
+                </button>
+              )}
+              {FEATURES.soundToggle && (
+                <button className="settings-item" onClick={toggleMusic}>
+                  {musicOn ? '🎵 MUSIC: ON' : '🎵 MUSIC: OFF'}
+                </button>
+              )}
               <button className="settings-item exit" onClick={handleExitGame}>
                 🚪 EXIT GAME
               </button>
@@ -443,10 +545,18 @@ export default function App() {
 
         {isPaused && (
           <div className="pause-overlay" onClick={handlePause}>
-            <div className="pause-content">
+            <div className="pause-content" onClick={(e) => e.stopPropagation()}>
               <div className="pause-icon">⏸️</div>
               <div className="pause-text">PAUSED</div>
-              <div className="pause-hint">Tap to resume</div>
+              <div className="pause-menu">
+                <button className="primary" onClick={handlePause}>▶️ RESUME</button>
+                <button className="secondary" onClick={() => handleStartGame(gameState.mode)}>🔄 RESTART</button>
+                {FEATURES.soundToggle && (
+                  <button className="secondary" onClick={toggleSfx}>{sfxOn ? '🔊 SFX: ON' : '🔇 SFX: OFF'}</button>
+                )}
+                <button className="secondary" onClick={handleExitGame}>🚪 QUIT</button>
+              </div>
+              <div className="pause-hint">Esc / Space to resume</div>
             </div>
           </div>
         )}
@@ -470,6 +580,7 @@ export default function App() {
           clearingRows={gameState.clearingRows}
           clearingCols={gameState.clearingCols}
           lastPlacedCells={gameState.lastPlacedCells}
+          hintCells={hintCells}
           boardRef={boardRef}
           onPointerDown={handleBoardTap}
         />
