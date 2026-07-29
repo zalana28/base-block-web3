@@ -49,6 +49,10 @@ function BlockShape({
   const hasDragged = useRef(false);
   const startClientPos = useRef<{ x: number; y: number } | null>(null);
   const startOffset = useRef<{ x: number; y: number } | null>(null);
+  // Native touchmove listener refs — attached only during drag, removed on
+  // dragend (Area 4.4). Non-passive to allow preventDefault on Android.
+  const touchMoveHandlerRef = useRef<((e: TouchEvent) => void) | null>(null);
+  const touchMoveElRef = useRef<HTMLElement | null>(null);
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
@@ -98,6 +102,13 @@ function BlockShape({
     };
 
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Area 4.4: attach non-passive touchmove listener during drag (removed on
+    // pointerup/cancel). Prevents Android scroll/pull-to-refresh mid-drag.
+    if (e.pointerType === 'touch' && FEATURES.dragRaf) {
+      touchMoveHandlerRef.current = (ev: TouchEvent) => ev.preventDefault();
+      touchMoveElRef.current = e.currentTarget as HTMLElement;
+      touchMoveElRef.current.addEventListener('touchmove', touchMoveHandlerRef.current, { passive: false });
+    }
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -121,9 +132,6 @@ function BlockShape({
     }
 
     if (hasDragged.current) {
-      // Area 4.4: prevent the page from scrolling / pull-to-refresh mid-drag
-      // on Android tablets. pointerType touch only.
-      if (e.pointerType === 'touch') e.preventDefault();
       onDragMove?.(e.clientX, e.clientY, e.pointerId);
     }
   }
@@ -134,6 +142,12 @@ function BlockShape({
     isPointerDown.current = false;
     activePointerId.current = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    // Remove native touchmove listener
+    if (touchMoveHandlerRef.current && touchMoveElRef.current) {
+      touchMoveElRef.current.removeEventListener('touchmove', touchMoveHandlerRef.current);
+      touchMoveHandlerRef.current = null;
+      touchMoveElRef.current = null;
+    }
 
     if (hasDragged.current) {
       onDragEnd?.(e.clientX, e.clientY, e.pointerId);

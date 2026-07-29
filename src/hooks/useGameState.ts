@@ -153,7 +153,7 @@ export function useGameState(
       }
 
       // ── Haptic on place ──────────────────────
-      haptic.place();
+      if (FEATURES.haptics) haptic.place();
       sfxPlace();
 
       // Track placed cells for placement animation
@@ -179,7 +179,7 @@ export function useGameState(
       if (linesCleared > 0) {
         const nextCombo = combo + 1;
         // Haptic + SFX (pitch rises with combo when FEATURES.sfx; off = today)
-        haptic.clear();
+        if (FEATURES.haptics) haptic.clear();
         sfxClear(FEATURES.sfx ? nextCombo : 0);
 
         // Show clearing animation
@@ -203,12 +203,12 @@ export function useGameState(
         // Combo juice on streaks
         if (nextCombo >= 2) {
           sfxCombo(nextCombo);
-          haptic.combo(nextCombo);
+          if (FEATURES.haptics) haptic.combo(nextCombo);
         }
       } else {
         // No lines cleared — apply immediately
         setGrid(afterClear);
-        if (FEATURES.sfx && streak > 0) { sfxStreakLost(); haptic.streakLost(); }
+        if (FEATURES.sfx && streak > 0) { sfxStreakLost(); if (FEATURES.haptics) haptic.streakLost(); }
         setStreak(0);
         setCombo(0);
       }
@@ -226,7 +226,7 @@ export function useGameState(
           setLevel(newLevel);
           setTimeLeft(ARCADE_TIME_PER_LEVEL);
           sfxLevelUp();
-          vibrate(40);
+          if (FEATURES.haptics) vibrate(40);
         }
       }
 
@@ -240,7 +240,7 @@ export function useGameState(
   useEffect(() => {
     if (phase === 'over' && prevPhaseRef.current !== 'over') {
       sfxGameOver();
-      haptic.gameOver();
+      if (FEATURES.haptics) haptic.gameOver();
     }
     prevPhaseRef.current = phase;
   }, [phase]);

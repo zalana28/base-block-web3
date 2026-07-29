@@ -5,7 +5,13 @@
 export const FEATURES = {
   clearAnimation: true,
   floatingScore: true,
-  combo: true,
+  // Combo visuals: badge, color tier, combo-pitch SFX, multi-line DOUBLE! popup.
+  // Default true (pure visual, never touches score value).
+  comboVisual: true,
+  // Combo SCORE MULTIPLIER: gained = base * (1 + min(combo,5)*0.5).
+  // Default FALSE: score is submitted onchain — do not change production
+  // score values unless explicitly enabled. Off = today's additive scoring.
+  comboMultiplier: false,
   screenShake: true,
   particles: true,
   sfx: true,
@@ -23,6 +29,10 @@ export const FEATURES = {
   // existing 0.8-cell lift, for touch input only. Default false so the
   // current drag feel (which the owner is comfortable with) never changes.
   piecePointerOffset: false,
+  // Haptic/vibrate feedback. Default false (respects user prefers not to vibrate).
+  haptics: false,
+  // Haptic/vibrate feedback. Default false (respects user prefers not to vibrate).
+  haptics: false,
 } as const;
 
 export type FeatureFlags = typeof FEATURES;
