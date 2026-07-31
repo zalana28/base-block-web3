@@ -28,6 +28,15 @@ vi.mock('../../hooks/useGameContract.js', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useFinalScoreSubmit.js', () => ({
+  useFinalScoreSubmit: () => ({
+    submitScore: vi.fn(),
+    status: 'idle',
+    error: null,
+    reset: vi.fn(),
+  }),
+}));
+
 import App from '../../App.js';
 
 describe('App — game start does not crash (regression for PR #35 merge)', () => {

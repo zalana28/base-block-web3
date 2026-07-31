@@ -4,6 +4,7 @@ import type { BlockPiece, Grid, Position } from "./lib/game/types.js";
 import { canPlace } from "./lib/game/grid.js";
 import { useGameState } from "./hooks/useGameState.js";
 import { useGameContract } from "./hooks/useGameContract.js";
+import { useFinalScoreSubmit } from "./hooks/useFinalScoreSubmit.js";
 import GameBoard from "./components/GameBoard.js";
 import BlockTray from "./components/BlockTray.js";
 import ScoreBoard from "./components/ScoreBoard.js";
@@ -98,7 +99,19 @@ export default function App() {
   const fxIdRef = useRef(0);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
+  const {
+    submitScore: submitFinalScore,
+    status: finalStatus,
+    error: finalError,
+    reset: finalReset,
+  } = useFinalScoreSubmit();
   const { address } = useAccount();
+
+  // Reset state final-score submit saat wallet ganti, supaya status sukses
+  // submit lama tidak terbawa ke game berikutnya (atau pemain lain).
+  useEffect(() => {
+    finalReset();
+  }, [address, finalReset]);
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
@@ -490,24 +503,30 @@ export default function App() {
 
   const handleStartGame = useCallback((mode: 0 | 1) => {
     actions.startGame(mode);
+    finalReset();
     setPhase("playing");
     setIsPaused(false);
     setShowSettings(false);
-  }, [actions]);
+  }, [actions, finalReset]);
 
   const handleSubmitScore = useCallback(() => {
     txReset();
     submitScore(gameState.mode, gameState.score, gameState.level);
   }, [txReset, submitScore, gameState.mode, gameState.score, gameState.level]);
 
+  const handleSubmitFinalScore = useCallback(() => {
+    submitFinalScore(gameState.mode, gameState.score, gameState.level);
+  }, [submitFinalScore, gameState.mode, gameState.score, gameState.level]);
+
   const handlePlayAgain = useCallback(() => {
     actions.resetGame();
     txReset();
+    finalReset();
     setGameOverReason('no-moves');
     setPhase("wallet");
     setIsPaused(false);
     setShowSettings(false);
-  }, [actions, txReset]);
+  }, [actions, txReset, finalReset]);
 
   const handlePause = useCallback(() => {
     setIsPaused((p) => !p);
@@ -518,9 +537,10 @@ export default function App() {
     setIsPaused(false);
     setShowSettings(false);
     txReset();
+    finalReset();
     actions.resetGame();
     setPhase("wallet");
-  }, [actions, txReset]);
+  }, [actions, txReset, finalReset]);
 
   const ambientBackground = (
     <>
@@ -570,9 +590,9 @@ export default function App() {
           reason={gameOverReason}
           onPlayAgain={handlePlayAgain}
           onViewLeaderboard={() => setShowLeaderboard(true)}
-          onSubmitScore={handleSubmitScore}
-          txStatus={txStatus}
-          txError={txError}
+          onSubmitScore={handleSubmitFinalScore}
+          submitStatus={finalStatus}
+          submitError={finalError}
         />
       </>
     );
