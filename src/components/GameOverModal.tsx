@@ -92,13 +92,13 @@ export default function GameOverModal({
             <button
               className="primary"
               onClick={onSubmitScore}
-              disabled={isSubmitting || txStatus === 'success'}
+              disabled={isSubmitting}
               style={{ fontSize: 12, padding: '8px 20px' }}
             >
               {isSubmitting
                 ? '⏳ SUBMITTING...'
                 : txStatus === 'success'
-                  ? '✅ SCORE SUBMITTED'
+                  ? '✅ SUBMITTED · SUBMIT AGAIN?'
                   : '📤 SUBMIT SCORE ON-CHAIN'}
             </button>
             {txStatus === 'error' && txError && (
