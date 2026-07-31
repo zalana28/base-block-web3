@@ -30,3 +30,19 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Leaderboard (data on-chain)
+
+Leaderboard dibaca langsung dari event `GameCompleted` di kontrak Base Mainnet (lihat `src/config/contract.ts`).
+
+- `src/lib/leaderboard.ts` — chunking `eth_getLogs` (maks ~10.000 blok/request), retry + backoff, dekode, dedupe skor terbaik per wallet, dan cache incremental di `localStorage` (tersimpan `lastScannedBlock`).
+- `src/config/rpc.ts` — transport fallback RPC. Optional env `VITE_BASE_RPC_URL` (lihat `.env.example`) dipakai sebagai RPC utama untuk pembacaan.
+- Blok deployment kontrak (untuk titik awal scan) di-set di `GAME_CONTRACT_DEPLOYED_BLOCK`.
+
+Untuk menjalankan:
+
+```bash
+cp .env.example .env   # opsional, set VITE_BASE_RPC_URL bila perlu
+npm run dev
+```
+
