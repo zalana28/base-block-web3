@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useConnect, useAccount, useDisconnect } from 'wagmi';
+import { useConnect, useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { useGameContract } from '../hooks/useGameContract.js';
+import { base } from '../config/chain.js';
 
 const CONNECTOR_ICONS: Record<string, string> = {
   'Base Account': '🔗',
@@ -23,9 +24,22 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [selectedMode, setSelectedMode] = useState<0 | 1 | null>(null);
   const { connectors, connect, isPending } = useConnect();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { disconnect } = useDisconnect();
+  const { switchChain, isPending: isSwitchingChain, error: switchError } = useSwitchChain();
   const { startGame, status, error } = useGameContract();
+
+  // Game hanya berjalan di Base (8453). Setelah wallet connect, auto-switch
+  // ke Base bila wallet masih di jaringan lain (mis. MetaMask di Ethereum
+  // mainnet) supaya tx tidak ditolak karena chainId tidak cocok.
+  const isOffBase = isConnected && typeof chainId === 'number' && chainId !== base.id;
+  const canStart = !isOffBase && !isSwitchingChain;
+
+  useEffect(() => {
+    if (isOffBase) {
+      switchChain({ chainId: base.id });
+    }
+  }, [isOffBase, switchChain]);
 
   function handleConnectWallet() {
     setShowModal(true);
@@ -73,13 +87,41 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
               {address.slice(0, 6)}...{address.slice(-4)}
             </p>
 
+            {isOffBase && (
+              <div className="tx-status" style={{ display: 'block', marginBottom: '0.75rem' }}>
+                {isSwitchingChain ? (
+                  <>
+                    <span className="dot pending" /> Switching to Base Network...
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color: 'var(--warning)' }}>⚠️ Wrong network</span>
+                    <button
+                      className="secondary"
+                      style={{ display: 'block', width: '100%', marginTop: '0.5rem' }}
+                      onClick={() => switchChain({ chainId: base.id })}
+                    >
+                      SWITCH TO BASE NETWORK
+                    </button>
+                  </>
+                )}
+                {switchError && (
+                  <div style={{ color: 'var(--danger)', marginTop: '0.5rem' }}>
+                    {'shortMessage' in switchError
+                      ? switchError.shortMessage
+                      : switchError.message || 'Failed to switch network'}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mode-selector-label">SELECT MODE</div>
 
             <div className="mode-grid">
               <button
                 className="mode-card classic"
                 onClick={() => handleSelectMode(0)}
-                disabled={status === 'pending' || status === 'confirming'}
+                disabled={!canStart || status === 'pending' || status === 'confirming'}
                 aria-label="Start Classic mode"
               >
                 <div className="mode-card-title">CLASSIC</div>
@@ -93,7 +135,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
               <button
                 className="mode-card arcade"
                 onClick={() => handleSelectMode(1)}
-                disabled={status === 'pending' || status === 'confirming'}
+                disabled={!canStart || status === 'pending' || status === 'confirming'}
                 aria-label="Start Arcade mode"
               >
                 <div className="mode-card-title">ARCADE</div>

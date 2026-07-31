@@ -14,8 +14,10 @@ vi.mock('wagmi', () => ({
   useAccount: () => ({
     address: '0x1234567890abcdef1234567890abcdef12345678',
     isConnected: true,
+    chainId: 8453,
   }),
   useDisconnect: () => ({ disconnect: vi.fn() }),
+  useSwitchChain: () => ({ switchChain: vi.fn(), isPending: false, error: null }),
 }));
 
 vi.mock('../../hooks/useGameContract.js', () => ({

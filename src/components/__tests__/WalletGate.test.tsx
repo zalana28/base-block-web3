@@ -1,12 +1,18 @@
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import WalletGate from '../WalletGate.js';
 
+const mockState = {
+  account: { address: undefined, isConnected: false, chainId: undefined },
+  switchChain: vi.fn(),
+};
+
 vi.mock('wagmi', () => ({
   useConnect: () => ({ connectors: [], connect: vi.fn(), isPending: false }),
-  useAccount: () => ({ address: undefined, isConnected: false }),
+  useAccount: () => mockState.account,
   useDisconnect: () => ({ disconnect: vi.fn() }),
+  useSwitchChain: () => ({ switchChain: mockState.switchChain, isPending: false, error: null }),
 }));
 
 vi.mock('../../hooks/useGameContract.js', () => ({
@@ -35,5 +41,33 @@ describe('WalletGate', () => {
       (el) => el.textContent,
     );
     expect(phrases).toEqual(['Stack. Blast.', 'Compete on Base.']);
+  });
+});
+
+describe('WalletGate — auto-switch to Base on connect', () => {
+  it('shows SWITCH TO BASE button when connected on the wrong chain', () => {
+    mockState.account = { address: '0x1234567890abcdef1234567890abcdef12345678', isConnected: true, chainId: 1 };
+    render(<WalletGate onReady={() => {}} />);
+
+    expect(screen.getByRole('button', { name: /switch to base/i })).toBeInTheDocument();
+    // Mode cards diblokir sampai wallet ada di Base.
+    expect(screen.getByRole('button', { name: /start classic/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /start arcade/i })).toBeDisabled();
+  });
+
+  it('does not block mode selection when already on Base', () => {
+    mockState.account = { address: '0x1234567890abcdef1234567890abcdef12345678', isConnected: true, chainId: 8453 };
+    render(<WalletGate onReady={() => {}} />);
+
+    expect(screen.queryByRole('button', { name: /switch to base/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /start classic/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /start arcade/i })).toBeEnabled();
+  });
+
+  it('calls switchChain when connection is on the wrong chain', () => {
+    mockState.account = { address: '0x1234567890abcdef1234567890abcdef12345678', isConnected: true, chainId: 1 };
+    render(<WalletGate onReady={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /switch to base/i }));
+    expect(mockState.switchChain).toHaveBeenCalledWith({ chainId: 8453 });
   });
 });
