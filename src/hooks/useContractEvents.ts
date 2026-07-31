@@ -10,12 +10,13 @@ interface Entry {
   mode: number;
 }
 
-// Base RPC publik menerima rentang 10k blok per eth_getLogs.
-const BLOCK_CHUNK = 10_000n;
+// Docs Base: "Keep fromBlock-to-toBlock ranges under 2,000 blocks for reliable
+// results." — pakai 2.000 blok per eth_getLogs (sebelumnya 10k, di atas batas).
+const BLOCK_CHUNK = 2_000n;
 // Base ~2 detik/blok → 0,5 blok/detik. 500.000 blok ≈ 11,6 hari.
 // JANGAN dikecilkan: angka ini menentukan ISI papan peringkat, bukan biaya
 // RPC. Mengecilkannya ke 200.000 menghapus entri pemain yang masih valid.
-// Efisiensi sudah didapat dari BLOCK_CHUNK 10k + CONCURRENCY + cache.
+// Efisiensi sudah didapat dari CONCURRENCY + cache.
 const LOOKBACK_BLOCKS = 500_000n;
 // Batasi request paralel supaya tidak kena rate limit.
 const CONCURRENCY = 5;
