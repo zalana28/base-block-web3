@@ -13,7 +13,6 @@ import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 import ComboEffect from "./components/ComboEffect.js";
 import { FEATURES } from "./config/features.js";
-import ShareMenu from "./components/ShareMenu.js";
 import FloatingScore, { type FloatScoreItem } from "./components/FloatingScore.js";
 import Particles, { type ParticleItem } from "./components/Particles.js";
 import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled, sfxDenied } from "./lib/audio.js";
@@ -729,7 +728,6 @@ export default function App() {
                 {txError.message}
               </span>
             )}
-            <ShareMenu score={gameState.score} streak={gameState.streak} />
           </div>
         )}
 
