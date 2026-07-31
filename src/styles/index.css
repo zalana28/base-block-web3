@@ -1720,6 +1720,122 @@ p {
   color: var(--danger);
 }
 
+/* ── Share menu — satu tombol Share + popover pilihan platform (icon-only) ──
+   Popover memakai position: fixed agar tidak ter-clip overlay/panel dan
+   posisinya dihitung di JS (mengikuti tombol, flip ke atas jika ruang bawah
+   sempit). */
+.share-menu {
+  display: inline-block;
+  line-height: 0;
+}
+
+.share-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(77, 138, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--base-bright);
+  box-shadow: 0 3px 0 rgba(77, 138, 255, 0.2);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+    transform 0.08s ease, box-shadow 0.12s ease;
+}
+
+.share-menu-trigger:hover {
+  background: rgba(77, 138, 255, 0.12);
+  border-color: var(--base-cyan);
+  color: var(--base-cyan);
+}
+
+.share-menu-trigger:active,
+.share-menu-trigger[aria-expanded='true'] {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.share-menu-trigger:focus-visible,
+.share-menu-item:focus-visible {
+  outline: 2px solid var(--base-cyan);
+  outline-offset: 2px;
+}
+
+.share-menu-popover {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 18px rgba(0, 229, 255, 0.12);
+  animation: share-menu-in 0.12s ease-out;
+}
+
+@keyframes share-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.share-menu-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+    transform 0.08s ease;
+}
+
+.share-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--panel-border-strong);
+  transform: translateY(-1px);
+}
+
+.share-menu-item:active {
+  transform: translateY(1px);
+}
+
+.share-menu-x {
+  color: var(--text);
+}
+
+.share-menu-x:hover {
+  color: #ffffff;
+}
+
+.share-menu-farcaster {
+  color: #855dcd;
+}
+
+.share-menu-farcaster:hover {
+  color: #a98bf5;
+  border-color: #855dcd;
+}
+
+
 /* ── HD blocks — shared beveled neon treatment ──────────────────
    Driven by the --c custom property set inline per cell. Used by
    GameBoard cells and BlockShape tray/floating cells. */

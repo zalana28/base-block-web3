@@ -1,4 +1,4 @@
-import ShareButtons from './ShareButtons.js';
+import ShareMenu from './ShareMenu.js';
 
 type TxStatus = 'idle' | 'pending' | 'confirming' | 'success' | 'error';
 
@@ -119,7 +119,7 @@ export default function GameOverModal({
           </button>
         </div>
 
-        <ShareButtons score={score} streak={streak} />
+        <ShareMenu score={score} streak={streak} />
       </div>
     </div>
   );
