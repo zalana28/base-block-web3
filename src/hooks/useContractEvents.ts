@@ -1,61 +1,41 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createPublicClient, http } from 'viem';
+import { createPublicClient } from 'viem';
 import { base } from '../config/chain.js';
-import { GAME_CONTRACT_ABI } from '../config/contract.js';
+import { GAME_CONTRACT_DEPLOYED_BLOCK } from '../config/contract.js';
+import { createLeaderboardTransport } from '../config/rpc.js';
+import {
+  fetchLeaderboardLogs,
+  mergeAndRank,
+  leaderboardCacheKey,
+  readCache,
+  writeCache,
+  type ScoreEntry,
+} from '../lib/leaderboard.js';
 
-interface Entry {
-  player: string;
-  score: number;
-  level: number;
-  mode: number;
-}
-
-// Docs Base: "Keep fromBlock-to-toBlock ranges under 2,000 blocks for reliable
-// results." — pakai 2.000 blok per eth_getLogs (sebelumnya 10k, di atas batas).
-const BLOCK_CHUNK = 2_000n;
-// Base ~2 detik/blok → 0,5 blok/detik. 500.000 blok ≈ 11,6 hari.
-// JANGAN dikecilkan: angka ini menentukan ISI papan peringkat, bukan biaya
-// RPC. Mengecilkannya ke 200.000 menghapus entri pemain yang masih valid.
-// Efisiensi sudah didapat dari CONCURRENCY + cache.
-const LOOKBACK_BLOCKS = 500_000n;
-// Batasi request paralel supaya tidak kena rate limit.
-const CONCURRENCY = 5;
-const MAX_TOP = 20;
-const CACHE_TTL_MS = 60_000;
-
+// Client dibuat SEKALI di level modul — tidak dibuat ulang per render.
+// Transport memakai fallback RPC (env var VITE_BASE_RPC_URL + RPC publik Base).
 const client = createPublicClient({
   chain: base,
-  transport: http(),
+  transport: createLeaderboardTransport(),
 });
 
-const GAME_COMPLETED_EVENT = GAME_CONTRACT_ABI.find(
-  (item) => item.type === 'event' && item.name === 'GameCompleted',
-)!;
+const MAX_TOP = 20;
+const CACHE_CAP = 200;
 
-let cache: { key: string; at: number; entries: Entry[] } | null = null;
+export type LeaderboardError = 'failed' | 'refresh-failed' | null;
 
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      results[index] = await fn(items[index]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
-
+// Membaca leaderboard dari event GameCompleted di Base Mainnet.
+// - Query dimulai dari blok deployment kontrak, bukan block 0.
+// - eth_getLogs di-chunk (≤10k blok/request) dengan retry + backoff.
+// - Cache incremental di localStorage: simpan lastScannedBlock, request
+//   berikutnya hanya scan blok baru sampai latest.
+// - Membaca data publik — TIDAK butuh wallet connected.
 export function useContractEvents({ address }: { address: string }) {
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<ScoreEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LeaderboardError>(null);
   const aliveRef = useRef(true);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -64,80 +44,63 @@ export function useContractEvents({ address }: { address: string }) {
     };
   }, []);
 
-  const fetchLeaderboard = useCallback(
+  const load = useCallback(
     async ({ force = false }: { force?: boolean } = {}) => {
-      if (!force && cache && cache.key === address && Date.now() - cache.at < CACHE_TTL_MS) {
-        setEntries(cache.entries);
-        setIsLoading(false);
-        setError(null);
-        return;
-      }
+      // Cegah request ganda (mis. buka modal cepat / RETRY berulang).
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+
+      const chainId = base.id;
+      const cacheKey = leaderboardCacheKey(chainId, address);
+      const cached = readCache(cacheKey);
 
       setIsLoading(true);
       setError(null);
 
       try {
         const currentBlock = await client.getBlockNumber();
-        const fromBlock =
-          currentBlock > LOOKBACK_BLOCKS ? currentBlock - LOOKBACK_BLOCKS : 0n;
 
-        // Bangun daftar rentang dulu, lalu ambil paralel. Versi lama
-        // menembak ~100 request berurutan tiap leaderboard dibuka.
-        const ranges: { from: bigint; to: bigint }[] = [];
-        for (let start = fromBlock; start <= currentBlock; start += BLOCK_CHUNK) {
-          const end = start + BLOCK_CHUNK - 1n > currentBlock ? currentBlock : start + BLOCK_CHUNK - 1n;
-          ranges.push({ from: start, to: end });
+        // Mulai scan dari blok deployment kecuali sudah punya cache valid
+        // (maka cukup lanjut dari lastScannedBlock + 1).
+        let fromScan = GAME_CONTRACT_DEPLOYED_BLOCK;
+        if (!force && cached && cached.lastScannedBlock) {
+          const last = BigInt(cached.lastScannedBlock);
+          fromScan = last + 1n;
         }
 
-        const chunks = await mapWithConcurrency(ranges, CONCURRENCY, (range) =>
-          client.getLogs({
-            address: address as `0x${string}`,
-            event: GAME_COMPLETED_EVENT,
-            fromBlock: range.from,
-            toBlock: range.to,
-          }),
-        );
+        let scanned: ScoreEntry[] = [];
+        if (fromScan <= currentBlock) {
+          scanned = await fetchLeaderboardLogs(client, address as `0x${string}`, {
+            fromBlock: fromScan,
+            toBlock: currentBlock,
+          });
+        }
 
-        // viem sudah mendekode args dari ABI — tidak perlu parsing hex manual
-        // maupun filter topic0 tangan (viem memfilternya server-side).
-        const decoded: Entry[] = [];
-        for (const logs of chunks) {
-          for (const log of logs) {
-            const args = log.args as {
-              player?: string;
-              mode?: number;
-              score?: bigint;
-              level?: bigint;
-            };
-            if (!args?.player || args.score === undefined) continue;
-            const score = Number(args.score);
-            if (!Number.isFinite(score) || score <= 0) continue;
-            decoded.push({
-              player: args.player,
-              mode: Number(args.mode ?? 0),
-              score,
-              level: Number(args.level ?? 0),
-            });
+        const merged = mergeAndRank(cached?.entries ?? [], scanned, CACHE_CAP);
+        writeCache(cacheKey, {
+          lastScannedBlock: currentBlock.toString(),
+          entries: merged,
+        });
+
+        if (aliveRef.current) {
+          setEntries(merged.slice(0, MAX_TOP));
+          setError(null);
+        }
+      } catch (err) {
+        // Detail teknis hanya ke console (development), bukan ke UI.
+        console.error('[leaderboard] fetch failed:', err);
+        if (aliveRef.current) {
+          if (cached && cached.entries.length > 0) {
+            // Data on-chain terakhir yang valid tetap ditampilkan (stale).
+            setEntries(cached.entries.slice(0, MAX_TOP));
+            setError('refresh-failed');
+          } else {
+            setEntries([]);
+            setError('failed');
           }
         }
-
-        const best = new Map<string, Entry>();
-        for (const entry of decoded) {
-          const key = `${entry.player.toLowerCase()}-${entry.mode}`;
-          const existing = best.get(key);
-          if (!existing || entry.score > existing.score) best.set(key, entry);
-        }
-
-        const sorted = Array.from(best.values())
-          .sort((a, b) => b.score - a.score)
-          .slice(0, MAX_TOP);
-
-        cache = { key: address, at: Date.now(), entries: sorted };
-        if (aliveRef.current) setEntries(sorted);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        if (aliveRef.current) setError(msg);
       } finally {
+        inFlightRef.current = false;
         if (aliveRef.current) setIsLoading(false);
       }
     },
@@ -145,13 +108,13 @@ export function useContractEvents({ address }: { address: string }) {
   );
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, [fetchLeaderboard]);
+    load();
+  }, [load]);
 
   return {
     entries,
     isLoading,
     error,
-    refetch: () => fetchLeaderboard({ force: true }),
+    refetch: () => load({ force: true }),
   };
 }

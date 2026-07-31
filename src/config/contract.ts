@@ -1,5 +1,10 @@
 export const GAME_CONTRACT_ADDRESS = '0xEC8FB28Ec5D1F2be0d00b2293d6BF10B533fA49E' as const;
 
+// Blok pertama di mana kontrak ter-deploy di Base Mainnet (chainId 8453),
+// ditemukan via binary search eth_getCode. Dipakai sebagai titik awal query
+// eth_getLogs — tidak pernah scan dari block 0.
+export const GAME_CONTRACT_DEPLOYED_BLOCK = 49_233_635n;
+
 // ABI ini mengikuti kontrak yang BENAR-BENAR ter-deploy di alamat di atas
 // (terverifikasi di Basescan), bukan contracts/BaseBlockGame.sol — file itu
 // sempat tertinggal versi lama tanpa leaderboard dan sudah diselaraskan

@@ -2,9 +2,13 @@ import { useContractEvents } from '../hooks/useContractEvents.js';
 import { GAME_CONTRACT_ADDRESS } from '../config/contract.js';
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
-  const { entries, isLoading, error } = useContractEvents({
+  const { entries, isLoading, error, refetch } = useContractEvents({
     address: GAME_CONTRACT_ADDRESS,
   });
+
+  const showStale = error === 'refresh-failed';
+  const showEmpty = !isLoading && entries.length === 0 && !error;
+  const showFailed = error === 'failed' && !isLoading;
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
@@ -26,16 +30,19 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
           {isLoading && (
             <p className="leaderboard-empty">Loading scores...</p>
           )}
-          {error && !isLoading && (
+
+          {showFailed && (
             <p className="leaderboard-empty">
-              ⚠️ Failed to load: {error}
+              ⚠️ Failed to load leaderboard. Check your connection and try again.
             </p>
           )}
-          {!isLoading && entries.length === 0 && !error && (
+
+          {showEmpty && (
             <p className="leaderboard-empty">No scores yet. Be the first!</p>
           )}
+
           {entries.map((entry, i) => (
-            <div key={`${entry.player}-${entry.mode}-${i}`} className="leaderboard-row">
+            <div key={`${entry.player}-${entry.mode}-${i}`} className="leaderboard-item">
               <span className="leaderboard-rank">#{i + 1}</span>
               <span className="leaderboard-name">
                 {entry.player.slice(0, 6)}...{entry.player.slice(-4)}
@@ -49,9 +56,24 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
               )}
             </div>
           ))}
+
+          {showStale && (
+            <p className="leaderboard-empty">
+              Showing last cached scores - could not refresh.
+            </p>
+          )}
         </div>
 
         <div className="landing-actions" style={{ marginTop: '1rem' }}>
+          {(showFailed || showStale) && (
+            <button
+              className="secondary"
+              style={{ display: 'block', width: '100%', marginBottom: '0.5rem' }}
+              onClick={refetch}
+            >
+              ↻ RETRY
+            </button>
+          )}
           <a
             href={`https://basescan.org/address/${GAME_CONTRACT_ADDRESS}`}
             target="_blank"
