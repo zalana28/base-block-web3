@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "base-block-web3",
+  "main": "src/worker.tsx",
   "compatibility_date": "2026-07-18",
   "assets": {
     "directory": "./dist",

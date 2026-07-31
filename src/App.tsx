@@ -11,6 +11,12 @@ import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
 import ComboEffect from "./components/ComboEffect.js";
+import { FEATURES } from "./config/features.js";
+import ShareButtons from "./components/ShareButtons.js";
+import FloatingScore, { type FloatScoreItem } from "./components/FloatingScore.js";
+import Particles, { type ParticleItem } from "./components/Particles.js";
+import { initSoundPrefs, getSfxEnabled, setSfxEnabled, getMusicEnabled, setMusicEnabled, sfxDenied } from "./lib/audio.js";
+import { haptic } from "./lib/haptics.js";
 
 type AppPhase = "wallet" | "playing" | "over";
 type GameOverReason = 'no-moves' | 'time-up';
@@ -46,6 +52,24 @@ function snapToValid(grid: Grid, shape: BlockPiece['shape'], pos: Position): Pos
   return null;
 }
 
+// Area 4.2 nearest-center snap (~0.5 cell tolerance). Accept the closest valid
+// placement only if it is within ~0.75 cell of the raw target cell.
+function nearestCenterSnap(grid: Grid, shape: BlockPiece['shape'], pos: Position, cell: number, pitch: number): Position | null {
+  const rows = shape.length;
+  const cols = shape[0]?.length ?? 0;
+  let best: Position | null = null;
+  let bestDist = Infinity;
+  for (let r = 0; r <= 8 - rows; r++) {
+    for (let c = 0; c <= 8 - cols; c++) {
+      if (!canPlace(grid, shape, { row: r, col: c })) continue;
+      const d = Math.hypot((r - pos.row) * pitch, (c - pos.col) * pitch);
+      if (d < bestDist) { bestDist = d; best = { row: r, col: c }; }
+    }
+  }
+  if (best && bestDist <= pitch * 0.75) return best;
+  return null;
+}
+
 function measureBoard(el: HTMLElement): BoardMetrics {
   const rect = el.getBoundingClientRect();
   const cs = getComputedStyle(el);
@@ -63,6 +87,15 @@ export default function App() {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [sfxOn, setSfxOn] = useState(true);
+  const [musicOn, setMusicOn] = useState(false);
+  const [hintCells, setHintCells] = useState<Position[] | null>(null);
+  const [floatItems, setFloatItems] = useState<FloatScoreItem[]>([]);
+  const [particleItems, setParticleItems] = useState<ParticleItem[]>([]);
+  const [boardShake, setBoardShake] = useState<0 | 2 | 3>(0);
+  const [boardFlash, setBoardFlash] = useState(false);
+  const [highlightCells, setHighlightCells] = useState<Position[] | null>(null);
+  const fxIdRef = useRef(0);
 
   const { submitScore, status: txStatus, error: txError, reset: txReset } = useGameContract();
   const { address } = useAccount();
@@ -147,6 +180,121 @@ export default function App() {
       }
     };
   }, []);
+
+  // ── Area 3 QoL handlers ────────────────────────────────────────
+  const handleUndo = useCallback(() => {
+    if (actions.undo()) setShowSettings(false);
+  }, [actions]);
+
+  const handleHint = useCallback(() => {
+    const res = actions.requestHint();
+    if (!res) return;
+    setHintCells(res.cells);
+    setShowSettings(false);
+    window.setTimeout(() => setHintCells(null), 2000);
+  }, [actions]);
+
+  const toggleSfx = useCallback(() => {
+    setSfxEnabled(!sfxOn);
+    setSfxOn(!sfxOn);
+  }, [sfxOn]);
+
+  const toggleMusic = useCallback(() => {
+    setMusicEnabled(!musicOn);
+    setMusicOn(!musicOn);
+  }, [musicOn]);
+
+  // Init persisted sound prefs once (Area 3.4).
+  useEffect(() => {
+    initSoundPrefs();
+    setSfxOn(getSfxEnabled());
+    setMusicOn(getMusicEnabled());
+  }, []);
+
+  // Auto-pause when the tab loses focus (Area 3.3) — critical on Android tablets.
+  useEffect(() => {
+    function onVis() {
+      if (document.visibilityState === "hidden" && phase === "playing" && !isPaused) {
+        setIsPaused(true);
+        setShowSettings(false);
+      }
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [phase, isPaused]);
+
+  // Keyboard: Esc/Space pause, Ctrl/Cmd+Z undo, H hint (Area 3).
+  useEffect(() => {
+    if (phase !== "playing") return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" || e.key === " ") {
+        e.preventDefault();
+        setIsPaused((p) => !p);
+        setShowSettings(false);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        handleHint();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, handleUndo, handleHint]);
+
+  // Disable undo once the onchain submit succeeds (anti-cheat, Area 3.1).
+  useEffect(() => {
+    if (txStatus === "success") actions.lockUndo();
+  }, [txStatus, actions]);
+
+  // Area 1 juice: spawn floating score + particles + shake when lines clear.
+  // Fires when clearingRows/cols transition from empty -> non-empty.
+  const prevClearingRef = useRef(false);
+  useEffect(() => {
+    const clearing = gameState.clearingRows.length > 0 || gameState.clearingCols.length > 0;
+    if (!clearing || prevClearingRef.current) { prevClearingRef.current = clearing; return; }
+    prevClearingRef.current = clearing;
+    if (!boardRef.current) return;
+    const lines = gameState.clearingRows.length + gameState.clearingCols.length;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // floating score at board center
+    if (FEATURES.floatingScore) {
+      const r = boardRef.current.getBoundingClientRect();
+      const id = ++fxIdRef.current;
+      const text = lines > 1 ? `+${Math.round(gameState.score)} DOUBLE!` : `+${lines}`;
+      setFloatItems((prev) => [...prev, { id, text, x: r.width / 2, y: r.height / 2, big: lines > 1 }]);
+      window.setTimeout(() => setFloatItems((prev) => prev.filter((f) => f.id !== id)), 950);
+    }
+    // particles: 6-8 per cleared cell, hard cap 80
+    if (FEATURES.particles && !reduced) {
+      const r = boardRef.current.getBoundingClientRect();
+      const m = boardMetricsRef.current;
+      const cell = m ? m.cell : 28;
+      const pad = m ? m.left - r.left : 6;
+      const padT = m ? m.top - r.top : 6;
+      const cells: { x: number; y: number }[] = [];
+      for (const row of gameState.clearingRows) for (let c = 0; c < 8; c++) cells.push({ x: pad + c * (cell + 2) + cell / 2, y: padT + row * (cell + 2) + cell / 2 });
+      for (const col of gameState.clearingCols) for (let r2 = 0; r2 < 8; r2++) cells.push({ x: pad + col * (cell + 2) + cell / 2, y: padT + r2 * (cell + 2) + cell / 2 });
+      const cols = ['var(--block-cyan)', 'var(--block-green)', 'var(--block-yellow)', 'var(--block-pink)'];
+      const burst: ParticleItem[] = [];
+      for (const cellPos of cells.slice(0, 10)) { // cap cells for perf
+        for (let k = 0; k < 7; k++) {
+          if (burst.length >= 80) break;
+          burst.push({ id: ++fxIdRef.current, x: cellPos.x, y: cellPos.y, color: cols[k % cols.length] });
+        }
+      }
+      setParticleItems((prev) => [...prev.slice(-80 + burst.length), ...burst]);
+      const ids = new Set(burst.map((b) => b.id));
+      window.setTimeout(() => setParticleItems((prev) => prev.filter((pt) => !ids.has(pt.id))), 550);
+    }
+    // shake proportional (Area 1.4): 1 line = none, 2 = 180ms, 3+ = 300ms + flash
+    if (FEATURES.screenShake && !reduced && lines >= 2) {
+      setBoardShake(lines >= 3 ? 3 : 2);
+      if (lines >= 3) { setBoardFlash(true); window.setTimeout(() => setBoardFlash(false), 320); }
+      window.setTimeout(() => setBoardShake(0), lines >= 3 ? 300 : 180);
+    }
+  }, [gameState.clearingRows, gameState.clearingCols, gameState.score]);
 
   const handleSelectPiece = useCallback((pieceId: string | null) => {
     setSelectedPieceId((current) => (current === pieceId ? null : pieceId));
@@ -249,8 +397,22 @@ export default function App() {
         // Bayangan menampilkan posisi hasil snap, bukan posisi mentah —
         // jadi yang dilihat pemain persis sama dengan yang akan terjadi
         // saat jari dilepas.
-        const snapped = snapToValid(gridRef.current, piece.shape, { row: rawRow, col: rawCol });
+        const snapped = FEATURES.snapTolerance
+          ? nearestCenterSnap(gridRef.current, piece.shape, { row: rawRow, col: rawCol }, m.cell, m.pitch)
+          : snapToValid(gridRef.current, piece.shape, { row: rawRow, col: rawCol });
         const ghost = snapped ?? { row: rawRow, col: rawCol };
+        if (FEATURES.rowColHighlight && snapped) {
+          const sim = gridRef.current.map((row) => row.slice());
+          for (let rr = 0; rr < piece.shape.length; rr++)
+            for (let cc = 0; cc < piece.shape[rr].length; cc++)
+              if (piece.shape[rr][cc]) sim[snapped.row + rr][snapped.col + cc] = 'red';
+          const cells: Position[] = [];
+          for (let r2 = 0; r2 < 8; r2++) if (sim[r2].every((c) => c !== null)) for (let c2 = 0; c2 < 8; c2++) cells.push({ row: r2, col: c2 });
+          for (let c2 = 0; c2 < 8; c2++) { let full = true; for (let r2 = 0; r2 < 8; r2++) if (sim[r2][c2] === null) { full = false; break; } if (full) for (let r2 = 0; r2 < 8; r2++) cells.push({ row: r2, col: c2 }); }
+          setHighlightCells(cells.length ? cells : null);
+        } else {
+          setHighlightCells(null);
+        }
 
         // pos yang disimpan adalah OFFSET translate3d (clientX dikurangi
         // anchor), bukan clientX mentah. Jadi bandingkan offset lawan
@@ -302,6 +464,7 @@ export default function App() {
 
       // Clear drag visual immediately
       setDragState({ piece: null, pos: null, ghost: null, ghostValid: false });
+      setHighlightCells(null);
 
       if (wasDragging && piece) {
         const m = getBoardMetrics();
@@ -310,9 +473,14 @@ export default function App() {
         const col = Math.floor((clientX - m.left) / m.pitch) - grab.col;
         const row = Math.floor((clientY - m.top) / m.pitch) - grab.row;
 
-        const snapped = snapToValid(gridRef.current, piece.shape, { row, col });
+        const snapped = FEATURES.snapTolerance
+          ? nearestCenterSnap(gridRef.current, piece.shape, { row, col }, m.cell, m.pitch)
+          : snapToValid(gridRef.current, piece.shape, { row, col });
         if (snapped) {
           actions.placePiece(piece, snapped);
+        } else if (FEATURES.invalidFeedback) {
+          sfxDenied();
+          haptic.denied();
         }
       }
     },
@@ -398,6 +566,7 @@ export default function App() {
           bestScore={gameState.bestAtStart}
           mode={gameState.mode}
           level={gameState.level}
+          streak={gameState.streak}
           reason={gameOverReason}
           onPlayAgain={handlePlayAgain}
           onViewLeaderboard={() => setShowLeaderboard(true)}
@@ -434,6 +603,36 @@ export default function App() {
               <button className="settings-item" onClick={handlePause}>
                 {isPaused ? '▶️ RESUME' : '⏸️ PAUSE'}
               </button>
+              {FEATURES.undo && (
+                <button
+                  className="settings-item"
+                  onClick={handleUndo}
+                  disabled={gameState.undoCharges <= 0}
+                  style={gameState.undoCharges <= 0 ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  ↩️ UNDO {gameState.undoCharges}/1
+                </button>
+              )}
+              {FEATURES.hint && (
+                <button
+                  className="settings-item"
+                  onClick={handleHint}
+                  disabled={gameState.hintCharges <= 0}
+                  style={gameState.hintCharges <= 0 ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  💡 HINT {gameState.hintCharges}/3
+                </button>
+              )}
+              {FEATURES.soundToggle && (
+                <button className="settings-item" onClick={toggleSfx}>
+                  {sfxOn ? '🔊 SFX: ON' : '🔇 SFX: OFF'}
+                </button>
+              )}
+              {FEATURES.soundToggle && (
+                <button className="settings-item" onClick={toggleMusic}>
+                  {musicOn ? '🎵 MUSIC: ON' : '🎵 MUSIC: OFF'}
+                </button>
+              )}
               <button className="settings-item exit" onClick={handleExitGame}>
                 🚪 EXIT GAME
               </button>
@@ -443,10 +642,18 @@ export default function App() {
 
         {isPaused && (
           <div className="pause-overlay" onClick={handlePause}>
-            <div className="pause-content">
+            <div className="pause-content" onClick={(e) => e.stopPropagation()}>
               <div className="pause-icon">⏸️</div>
               <div className="pause-text">PAUSED</div>
-              <div className="pause-hint">Tap to resume</div>
+              <div className="pause-menu">
+                <button className="primary" onClick={handlePause}>▶️ RESUME</button>
+                <button className="secondary" onClick={() => handleStartGame(gameState.mode)}>🔄 RESTART</button>
+                {FEATURES.soundToggle && (
+                  <button className="secondary" onClick={toggleSfx}>{sfxOn ? '🔊 SFX: ON' : '🔇 SFX: OFF'}</button>
+                )}
+                <button className="secondary" onClick={handleExitGame}>🚪 QUIT</button>
+              </div>
+              <div className="pause-hint">Esc / Space to resume</div>
             </div>
           </div>
         )}
@@ -462,17 +669,25 @@ export default function App() {
           timeLeft={gameState.timeLeft}
         />
 
-        <GameBoard
-          grid={gameState.grid}
-          ghostPiece={dragState.piece}
-          ghostPos={dragState.ghost}
-          isGhostValid={dragState.ghostValid}
-          clearingRows={gameState.clearingRows}
-          clearingCols={gameState.clearingCols}
-          lastPlacedCells={gameState.lastPlacedCells}
-          boardRef={boardRef}
-          onPointerDown={handleBoardTap}
-        />
+        <div className="board-juice-wrap" style={{ position: 'relative', width: 'var(--board-size, min(92vw, 420px))', margin: '0 auto' }}>
+          <GameBoard
+            grid={gameState.grid}
+            ghostPiece={dragState.piece}
+            ghostPos={dragState.ghost}
+            isGhostValid={dragState.ghostValid}
+            clearingRows={gameState.clearingRows}
+            clearingCols={gameState.clearingCols}
+            lastPlacedCells={gameState.lastPlacedCells}
+            hintCells={hintCells}
+            highlightCells={highlightCells}
+            shake={boardShake}
+            flash={boardFlash}
+            boardRef={boardRef}
+            onPointerDown={handleBoardTap}
+          />
+          <FloatingScore items={floatItems} />
+          <Particles particles={particleItems} />
+        </div>
 
         <ComboEffect combo={gameState.combo} />
 
@@ -493,6 +708,9 @@ export default function App() {
               <span className="classic-submit-error">
                 {txError.message}
               </span>
+            )}
+            {txStatus === 'success' && (
+              <ShareButtons score={gameState.score} streak={gameState.streak} compact />
             )}
           </div>
         )}

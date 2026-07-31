@@ -1,4 +1,5 @@
 import { useRef, memo } from 'react';
+import { FEATURES } from '../config/features.js';
 import { createPortal } from 'react-dom';
 import type { BlockPiece } from '../lib/game/types.js';
 import { PIECE_GAP } from '../hooks/useTrayMetrics.js';
@@ -48,6 +49,10 @@ function BlockShape({
   const hasDragged = useRef(false);
   const startClientPos = useRef<{ x: number; y: number } | null>(null);
   const startOffset = useRef<{ x: number; y: number } | null>(null);
+  // Native touchmove listener refs — attached only during drag, removed on
+  // dragend (Area 4.4). Non-passive to allow preventDefault on Android.
+  const touchMoveHandlerRef = useRef<((e: TouchEvent) => void) | null>(null);
+  const touchMoveElRef = useRef<HTMLElement | null>(null);
   const rows = piece.shape.length;
   const cols = piece.shape[0]?.length ?? 0;
 
@@ -97,6 +102,13 @@ function BlockShape({
     };
 
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Area 4.4: attach non-passive touchmove listener during drag (removed on
+    // pointerup/cancel). Prevents Android scroll/pull-to-refresh mid-drag.
+    if (e.pointerType === 'touch' && FEATURES.dragRaf) {
+      touchMoveHandlerRef.current = (ev: TouchEvent) => ev.preventDefault();
+      touchMoveElRef.current = e.currentTarget as HTMLElement;
+      touchMoveElRef.current.addEventListener('touchmove', touchMoveHandlerRef.current, { passive: false });
+    }
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -130,6 +142,12 @@ function BlockShape({
     isPointerDown.current = false;
     activePointerId.current = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    // Remove native touchmove listener
+    if (touchMoveHandlerRef.current && touchMoveElRef.current) {
+      touchMoveElRef.current.removeEventListener('touchmove', touchMoveHandlerRef.current);
+      touchMoveHandlerRef.current = null;
+      touchMoveElRef.current = null;
+    }
 
     if (hasDragged.current) {
       onDragEnd?.(e.clientX, e.clientY, e.pointerId);
@@ -167,7 +185,8 @@ function BlockShape({
   // Floating clone — rendered via Portal to document.body
   // Uses transform: translate3d for smooth GPU positioning
   const floatCellSize = boardCellSize ?? trayCellSize;
-  const liftY = floatCellSize * LIFT_OFFSET_Y_RATIO;
+  const liftY = floatCellSize * LIFT_OFFSET_Y_RATIO
+    + (FEATURES.piecePointerOffset ? floatCellSize * 0.5 : 0); // Area 4.5 opt-in, off by default
 
   const floatingElement = (isDragging && dragPos && boardCellSize) ? (
     <div

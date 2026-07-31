@@ -16,6 +16,7 @@
   --base-blue-dark: #003ecc;
   --base-cyan: #00e5ff;
   --base-bright: #4d8aff;
+  --label-bright: #9bc1ff; /* >=4.5:1 on dark panel */
   --neon-glow: rgba(0, 229, 255, 0.45);
   --neon-glow-soft: rgba(0, 82, 255, 0.35);
 
@@ -911,8 +912,9 @@ button .btn-icon {
 }
 
 .score-block {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.62); /* darker for label contrast */
   padding: 0.5rem 0.75rem;
+  position: relative; /* enables abs-pos overlays; no layout shift */
   border: 1px solid rgba(0, 82, 255, 0.4);
   border-radius: var(--radius-sm);
   box-shadow: 
@@ -922,12 +924,15 @@ button .btn-icon {
 
 .score-label {
   font-size: 0.4375rem;
-  color: var(--base-bright);
+  color: var(--label-bright);
   display: block;
   margin-bottom: 0.25rem;
   font-family: 'Press Start 2P', 'Courier New', monospace;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .score-value {
@@ -1770,4 +1775,185 @@ p {
   border-radius: 4px 4px 8px 8px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.02));
   pointer-events: none;
+}
+
+
+/* ── Area 2: streak feedback overlays (no layout shift) ─────────── */
+.score-value.is-up {
+  animation: streakPulseUp 0.4s ease-out;
+}
+.score-value.is-lost {
+  animation: streakFlashLost 0.4s ease-out;
+}
+.streak-lost-label {
+  position: absolute;
+  left: 50%;
+  bottom: 0.1875rem;
+  transform: translateX(-50%);
+  font-size: 0.375rem;
+  color: var(--danger);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: streakLostFade 0.4s ease-out forwards;
+}
+@keyframes streakPulseUp {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); color: var(--frog); text-shadow: 0 0 10px var(--frog-glow); }
+  100% { transform: scale(1); }
+}
+@keyframes streakFlashLost {
+  0% { color: var(--danger); }
+  100% { color: var(--frog); }
+}
+@keyframes streakLostFade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .score-value.is-up,
+  .score-value.is-lost,
+  .streak-lost-label {
+    animation: none !important;
+  }
+}
+
+
+/* ── Area 3: pause menu + hint overlay (no layout shift) ────────── */
+.pause-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  min-width: 11rem;
+}
+.pause-menu .primary,
+.pause-menu .secondary {
+  font-size: 0.625rem;
+  padding: 0.625rem 0.75rem;
+}
+/* Hint highlight: outline + glow only (outline never affects layout). */
+.board-cell.hint-cell {
+  outline: 2px solid var(--yellow);
+  outline-offset: -2px;
+  box-shadow: 0 0 10px rgba(255, 234, 0, 0.6), inset 0 0 8px rgba(255, 234, 0, 0.25);
+  animation: hintBlink 1s ease-in-out infinite;
+}
+@keyframes hintBlink {
+  0%, 100% { outline-color: var(--yellow); box-shadow: 0 0 10px rgba(255, 234, 0, 0.6), inset 0 0 8px rgba(255, 234, 0, 0.25); }
+  50% { outline-color: transparent; box-shadow: 0 0 4px rgba(255, 234, 0, 0.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-cell.hint-cell { animation: none; }
+}
+
+
+/* ── Area 1: juice (transform/opacity/filter only; zero layout shift) ── */
+.floating-score-layer,
+.particle-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+  overflow: hidden;
+}
+.floating-score {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: var(--frog);
+  text-shadow: 0 0 8px var(--frog-glow), 0 2px 4px rgba(0,0,0,0.6);
+  animation: floatScore 900ms ease-out forwards;
+  white-space: nowrap;
+}
+.floating-score.big {
+  font-size: 1.5rem;
+  color: var(--yellow);
+  text-shadow: 0 0 12px rgba(255,234,0,0.7), 0 0 28px rgba(255,140,0,0.5);
+}
+@keyframes floatScore {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - 70px)); }
+}
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  animation: particleFly 500ms ease-out forwards;
+}
+@keyframes particleFly {
+  0% { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.3); }
+}
+
+/* Combo color tiers (Area 1.3) */
+.combo-popup.combo-tier-green .combo-text { color: var(--frog); text-shadow: 0 0 10px var(--frog-glow); }
+.combo-popup.combo-tier-yellow .combo-text { color: var(--yellow); text-shadow: 0 0 10px rgba(255,234,0,0.65), 0 0 28px rgba(255,140,0,0.45); }
+.combo-popup.combo-tier-orange .combo-text { color: var(--block-orange); text-shadow: 0 0 12px rgba(255,140,0,0.7), 0 0 30px rgba(255,87,87,0.5); }
+.combo-popup.combo-tier-magenta .combo-text { color: var(--block-pink); text-shadow: 0 0 14px rgba(255,79,216,0.75), 0 0 34px rgba(168,85,247,0.55); }
+
+/* Screen shake + full-board flash (Area 1.4). Applied to board wrapper via class. */
+.game-board.shake-2 { animation: shake 180ms ease-in-out; }
+.game-board.shake-3 { animation: shake 300ms ease-in-out; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  20% { transform: translateX(-3px) translateY(1px); }
+  40% { transform: translateX(3px) translateY(-1px); }
+  60% { transform: translateX(-2px) translateY(2px); }
+  80% { transform: translateX(2px) translateY(-2px); }
+}
+.game-board.board-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  z-index: 20;
+  animation: boardFlash 300ms ease-out forwards;
+}
+@keyframes boardFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Staggered per-cell clear blast (Area 1.1). Cell stays in place; only
+   transform/opacity animate. Stagger via inline animation-delay. */
+.board-cell.row--clearing.staggered {
+  animation: clearBlast 260ms ease-out forwards;
+}
+@keyframes clearBlast {
+  0% { transform: scale(1); filter: brightness(1); opacity: 1; }
+  40% { transform: scale(1.25); filter: brightness(2.2); opacity: 1; }
+  100% { transform: scale(0); filter: brightness(3); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-score, .particle, .game-board.shake-2, .game-board.shake-3,
+  .game-board.board-flash::after, .board-cell.row--clearing.staggered {
+    animation: none !important;
+  }
+  .floating-score { opacity: 0; }
+  .particle { opacity: 0; }
+}
+
+
+/* ── Area 4: row/col highlight + invalid piece shake (no layout shift) ── */
+.board-cell.highlight-cell {
+  background: rgba(0, 229, 255, 0.18);
+  box-shadow: inset 0 0 6px rgba(0, 229, 255, 0.4);
+}
+.floating-drag-piece.shake-piece {
+  animation: shakePiece 200ms ease-in-out;
+}
+@keyframes shakePiece {
+  0%, 100% { transform: translate3d(var(--sx, 0), var(--sy, 0), 0); }
+  25% { transform: translate3d(calc(var(--sx, 0) - 4px), var(--sy, 0), 0); }
+  75% { transform: translate3d(calc(var(--sx, 0) + 4px), var(--sy, 0), 0); }
 }

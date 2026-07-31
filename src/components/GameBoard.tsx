@@ -9,6 +9,10 @@ interface Props {
   clearingRows?: number[];
   clearingCols?: number[];
   lastPlacedCells?: Position[];
+  hintCells?: Position[] | null;
+  highlightCells?: Position[] | null;
+  shake?: 0 | 2 | 3;
+  flash?: boolean;
   boardRef?: React.Ref<HTMLDivElement>;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -32,6 +36,8 @@ interface CellProps {
   isGhostValid: boolean;
   isClearing: boolean;
   isJustPlaced: boolean;
+  isHint: boolean;
+  isHighlight: boolean;
 }
 
 const Cell = memo(function Cell({
@@ -40,7 +46,9 @@ const Cell = memo(function Cell({
   isGhost,
   isGhostValid,
   isClearing,
-  isJustPlaced
+  isJustPlaced,
+  isHint,
+  isHighlight
 }: CellProps) {
   // Filled cells use the shared .hd-block treatment driven by --c.
   const colorVar = filled && color ? COLOR_MAP[color] || color : undefined;
@@ -50,7 +58,9 @@ const Cell = memo(function Cell({
     colorVar ? 'hd-block' : '',
     !colorVar && isGhost ? (isGhostValid ? 'ghost-valid' : 'ghost-invalid') : '',
     isClearing ? 'row--clearing' : '',
-    isJustPlaced ? 'block--dropping' : ''
+    isJustPlaced ? 'block--dropping' : '',
+    isHint ? 'hint-cell' : '',
+    isHighlight ? 'highlight-cell' : ''
   ].filter(Boolean).join(' ');
 
   return (
@@ -69,6 +79,10 @@ function GameBoard({
   clearingRows = [],
   clearingCols = [],
   lastPlacedCells = [],
+  hintCells = null,
+  highlightCells = null,
+  shake = 0,
+  flash = false,
   boardRef,
   onPointerDown,
 }: Props) {
@@ -77,6 +91,12 @@ function GameBoard({
 
   const isJustPlaced = (row: number, col: number) =>
     lastPlacedCells.some(c => c.row === row && c.col === col);
+
+  const isHintCell = (row: number, col: number) =>
+    !!hintCells && hintCells.some(c => c.row === row && c.col === col);
+
+  const isHighlightCell = (row: number, col: number) =>
+    !!highlightCells && highlightCells.some(c => c.row === row && c.col === col);
 
   const isGhostCell = (row: number, col: number) => {
     if (!ghostPiece || !ghostPos) return false;
@@ -94,7 +114,7 @@ function GameBoard({
     <div
       ref={boardRef}
       onPointerDown={onPointerDown}
-      className="game-board relative grid grid-cols-8 grid-rows-8 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none"
+      className={`game-board relative grid grid-cols-8 grid-rows-8 gap-[3px] p-2 bg-slate-950/80 border border-slate-800 rounded-2xl w-full aspect-square max-w-[400px] shadow-2xl shadow-cyan-500/5 select-none${shake === 2 ? ' shake-2' : ''}${shake === 3 ? ' shake-3' : ''}${flash ? ' board-flash' : ''}`}
     >
       {grid.map((row, rIdx) =>
         row.map((cell, cIdx) => {
@@ -103,6 +123,8 @@ function GameBoard({
           const ghost = isGhostCell(rIdx, cIdx);
           const clearing = isClearingCell(rIdx, cIdx);
           const justPlaced = isJustPlaced(rIdx, cIdx);
+          const hint = isHintCell(rIdx, cIdx);
+          const highlight = isHighlightCell(rIdx, cIdx);
 
           return (
             <Cell
@@ -113,6 +135,8 @@ function GameBoard({
               isGhostValid={isGhostValid}
               isClearing={clearing}
               isJustPlaced={justPlaced}
+              isHint={hint}
+              isHighlight={highlight}
             />
           );
         })

@@ -7,6 +7,7 @@ export function useBlockGenerator(): {
   nextPieces: (BlockPiece | null)[];
   regenerate: (level?: number) => void;
   markUsed: (id: string, level?: number) => void;
+  restorePieces: (prev: (BlockPiece | null)[]) => void;
   clearAll: () => void;
 } {
   const [pieces, setPieces] = useState<(BlockPiece | null)[]>(() => generateTrayBatch());
@@ -33,13 +34,17 @@ export function useBlockGenerator(): {
     });
   }, []);
 
+  const restorePieces = useCallback((prev: (BlockPiece | null)[]) => {
+    setPieces(prev);
+  }, []);
+
   const clearAll = useCallback(() => {
     setPieces([null, null, null]);
     setNextPieces([null, null, null]);
   }, []);
 
   return useMemo(
-    () => ({ pieces, nextPieces, regenerate, markUsed, clearAll }),
-    [pieces, nextPieces, regenerate, markUsed, clearAll],
+    () => ({ pieces, nextPieces, regenerate, markUsed, restorePieces, clearAll }),
+    [pieces, nextPieces, regenerate, markUsed, restorePieces, clearAll],
   );
 }

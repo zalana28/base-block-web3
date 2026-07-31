@@ -1,3 +1,5 @@
+import ShareButtons from './ShareButtons.js';
+
 type TxStatus = 'idle' | 'pending' | 'confirming' | 'success' | 'error';
 
 interface Props {
@@ -6,6 +8,7 @@ interface Props {
   mode?: 0 | 1;
   level?: number;
   combo?: number;
+  streak?: number;
   totalCleared?: number;
   totalMoves?: number;
   reason?: 'no-moves' | 'time-up';
@@ -17,7 +20,7 @@ interface Props {
 }
 
 export default function GameOverModal({
-  score, bestScore, mode, level, combo, totalCleared, totalMoves,
+  score, bestScore, mode, level, combo, streak = 0, totalCleared, totalMoves,
   reason, onPlayAgain, onViewLeaderboard, onSubmitScore, txStatus = 'idle', txError,
 }: Props) {
   const isTimeUp = reason === 'time-up';
@@ -89,13 +92,13 @@ export default function GameOverModal({
             <button
               className="primary"
               onClick={onSubmitScore}
-              disabled={isSubmitting || txStatus === 'success'}
+              disabled={isSubmitting}
               style={{ fontSize: 12, padding: '8px 20px' }}
             >
               {isSubmitting
                 ? '⏳ SUBMITTING...'
                 : txStatus === 'success'
-                  ? '✅ SCORE SUBMITTED'
+                  ? '✅ SUBMITTED · SUBMIT AGAIN?'
                   : '📤 SUBMIT SCORE ON-CHAIN'}
             </button>
             {txStatus === 'error' && txError && (
@@ -114,6 +117,8 @@ export default function GameOverModal({
             LEADERBOARD
           </button>
         </div>
+
+        <ShareButtons score={score} streak={streak} />
       </div>
     </div>
   );
