@@ -15,19 +15,20 @@ interface Props {
   onPlayAgain: () => void;
   onViewLeaderboard: () => void;
   onSubmitScore?: () => void;
-  txStatus?: TxStatus;
-  txError?: { message: string } | null;
+  submitStatus?: TxStatus;
+  submitError?: { message: string } | null;
 }
 
 export default function GameOverModal({
   score, bestScore, mode, level, combo, streak = 0, totalCleared, totalMoves,
-  reason, onPlayAgain, onViewLeaderboard, onSubmitScore, txStatus = 'idle', txError,
+  reason, onPlayAgain, onViewLeaderboard, onSubmitScore, submitStatus = 'idle', submitError,
 }: Props) {
   const isTimeUp = reason === 'time-up';
   // bestScore di sini adalah bestAtStart (rekor SEBELUM run ini). Pakai '>'
   // bukan '>=': skor yang cuma menyamai rekor bukan rekor baru.
   const isNewBest = score > bestScore && score > 0;
-  const isSubmitting = txStatus === 'pending' || txStatus === 'confirming';
+  const isSubmitting = submitStatus === 'pending' || submitStatus === 'confirming';
+  const isSubmitted = submitStatus === 'success';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Game over">
@@ -92,18 +93,18 @@ export default function GameOverModal({
             <button
               className="primary"
               onClick={onSubmitScore}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isSubmitted}
               style={{ fontSize: 12, padding: '8px 20px' }}
             >
               {isSubmitting
                 ? '⏳ SUBMITTING...'
-                : txStatus === 'success'
-                  ? '✅ SUBMITTED · SUBMIT AGAIN?'
+                : isSubmitted
+                  ? '✅ SCORE SUBMITTED'
                   : '📤 SUBMIT SCORE ON-CHAIN'}
             </button>
-            {txStatus === 'error' && txError && (
+            {submitStatus === 'error' && submitError && (
               <span style={{ fontSize: 10, color: 'var(--danger)' }}>
-                {txError.message}
+                {submitError.message}
               </span>
             )}
           </div>
