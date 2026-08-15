@@ -104,9 +104,7 @@ export function useContractEvents({ address }: { address: string }) {
           setEntries(merged.slice(0, MAX_TOP));
           setError(null);
         }
-      } catch (err) {
-        // Detail teknis hanya ke console (development), bukan ke UI.
-        console.error('[leaderboard] fetch failed:', err);
+      } catch {
         if (aliveRef.current) {
           if (cached && cached.entries.length > 0) {
             // Data on-chain terakhir yang valid tetap ditampilkan (stale).
