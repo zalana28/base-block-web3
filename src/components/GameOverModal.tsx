@@ -119,7 +119,7 @@ export default function GameOverModal({
           </button>
         </div>
 
-        <ShareMenu score={score} streak={streak} />
+        <ShareMenu score={score} streak={streak} mode={mode} level={level} />
       </div>
     </div>
   );

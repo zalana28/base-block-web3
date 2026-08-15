@@ -31,8 +31,6 @@ export const FEATURES = {
   piecePointerOffset: false,
   // Haptic/vibrate feedback. Default false (respects user prefers not to vibrate).
   haptics: false,
-  // Haptic/vibrate feedback. Default false (respects user prefers not to vibrate).
-  haptics: false,
 } as const;
 
 export type FeatureFlags = typeof FEATURES;

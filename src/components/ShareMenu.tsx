@@ -6,6 +6,8 @@ import FarcasterIcon from './icons/FarcasterIcon.js';
 interface Props {
   score: number;
   streak?: number;
+  mode?: 0 | 1;
+  level?: number;
 }
 
 const SITE_URL = 'https://base-block.biz.id';
@@ -23,16 +25,24 @@ interface Position {
 // platform (X + Farcaster), icon-only. Membuka menu TIDAK menyentuh state
 // submit score / blockchain. Popover diposisikan fixed (dihitung dari posisi
 // tombol) supaya tidak ter-clip overlay/panel dan tidak keluar viewport.
-export default function ShareMenu({ score, streak = 0 }: Props) {
+export default function ShareMenu({ score, streak = 0, mode, level }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const buildShare = useCallback(() => {
-    const text = `I scored ${score} in BASE BLOCK 🧱 / Streak ${streak}x on Base`;
-    const url = SITE_URL;
-    return { text, url, og: `${SITE_URL}/api/og?score=${score}&streak=${streak}` };
-  }, [score, streak]);
+    const siteUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : SITE_URL;
+    const modeLabel = mode === 1 ? (level ? ` (Arcade Lv.${level})` : ' (Arcade)') : '';
+    const text = `I scored ${score.toLocaleString()}${modeLabel} in BASE BLOCK 🧱 / Streak ${streak}x on Base`;
+    const ogParams = new URLSearchParams({
+      score: String(score),
+      streak: String(streak),
+    });
+    if (mode !== undefined) ogParams.set('mode', String(mode));
+    if (level !== undefined) ogParams.set('level', String(level));
+    const og = `${siteUrl}/api/og?${ogParams.toString()}`;
+    return { text, url: siteUrl, og };
+  }, [score, streak, mode, level]);
 
   const shareToX = useCallback(() => {
     const { text, url } = buildShare();
@@ -43,10 +53,11 @@ export default function ShareMenu({ score, streak = 0 }: Props) {
   }, [buildShare]);
 
   const shareToFarcaster = useCallback(() => {
-    const { text, og } = buildShare();
+    const { text, url, og } = buildShare();
     const u = new URL('https://warpcast.com/~/compose');
     u.searchParams.set('text', text);
-    u.searchParams.set('embeds[]', og);
+    u.searchParams.append('embeds[]', url);
+    u.searchParams.append('embeds[]', og);
     window.open(u.toString(), '_blank', 'noopener,noreferrer');
   }, [buildShare]);
 
@@ -158,4 +169,3 @@ export default function ShareMenu({ score, streak = 0 }: Props) {
     </div>
   );
 }
-
