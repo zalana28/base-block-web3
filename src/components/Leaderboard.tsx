@@ -1,5 +1,48 @@
 import { useContractEvents } from '../hooks/useContractEvents.js';
 import { GAME_CONTRACT_ADDRESS } from '../config/contract.js';
+import { useBasename } from '../hooks/useBasename.js';
+import type { ScoreEntry } from '../lib/leaderboard.js';
+
+function LeaderboardItem({ entry, rank }: { entry: ScoreEntry; rank: number }) {
+  const { displayName, isBasename } = useBasename(entry.player);
+
+  return (
+    <div className="leaderboard-item">
+      <span className="leaderboard-rank">#{rank}</span>
+      <span
+        className={`leaderboard-name ${isBasename ? 'is-basename' : ''}`}
+        title={entry.player}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          maxWidth: '180px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {displayName}
+        {isBasename && (
+          <span
+            className="basename-dot"
+            title="Base Name"
+            style={{ fontSize: '0.625rem', lineHeight: 1 }}
+          >
+            🔵
+          </span>
+        )}
+      </span>
+      <span className="leaderboard-score">{entry.score.toLocaleString()}</span>
+      {entry.level > 0 && (
+        <span className="leaderboard-level">LV{entry.level}</span>
+      )}
+      {entry.mode === 1 && (
+        <span className="leaderboard-level" style={{ color: 'var(--block-orange)' }}>ARC</span>
+      )}
+    </div>
+  );
+}
 
 export default function Leaderboard({ onClose }: { onClose: () => void }) {
   const { entries, isLoading, error, refetch } = useContractEvents({
@@ -13,12 +56,45 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
   return (
     <div className="overlay" role="dialog" aria-modal="true">
       <div className="panel">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#00e5ff', fontSize: '1.5rem', cursor: 'pointer', padding: '0.25rem', lineHeight: 1 }}>←</button>
-          <div className="landing-badge" style={{ margin: 0 }}>
-            <span className="dot" />
-            LEADERBOARD
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#00e5ff',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                padding: '0.25rem',
+                lineHeight: 1,
+              }}
+              aria-label="Back"
+            >
+              ←
+            </button>
+            <div className="landing-badge" style={{ margin: 0 }}>
+              <span className="dot" />
+              LEADERBOARD
+            </div>
           </div>
+          <button
+            onClick={() => refetch()}
+            disabled={isLoading}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              color: 'var(--text-dim)',
+              fontSize: '0.625rem',
+              padding: '0.25rem 0.5rem',
+              cursor: isLoading ? 'default' : 'pointer',
+              opacity: isLoading ? 0.5 : 1,
+            }}
+            title="Refresh Leaderboard"
+          >
+            {isLoading ? '⏳' : '🔄'}
+          </button>
         </div>
         <h1 style={{ marginBottom: '0.25rem' }}>TOP STACKERS</h1>
         <h2>🏆 ON BASE NETWORK</h2>
@@ -27,7 +103,7 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="leaderboard-list">
-          {isLoading && (
+          {isLoading && entries.length === 0 && (
             <p className="leaderboard-empty">Loading scores...</p>
           )}
 
@@ -42,19 +118,11 @@ export default function Leaderboard({ onClose }: { onClose: () => void }) {
           )}
 
           {entries.map((entry, i) => (
-            <div key={`${entry.player}-${entry.mode}-${i}`} className="leaderboard-item">
-              <span className="leaderboard-rank">#{i + 1}</span>
-              <span className="leaderboard-name">
-                {entry.player.slice(0, 6)}...{entry.player.slice(-4)}
-              </span>
-              <span className="leaderboard-score">{entry.score.toLocaleString()}</span>
-              {entry.level > 0 && (
-                <span className="leaderboard-level">LV{entry.level}</span>
-              )}
-              {entry.mode === 1 && (
-                <span className="leaderboard-level" style={{ color: 'var(--block-orange)' }}>ARC</span>
-              )}
-            </div>
+            <LeaderboardItem
+              key={`${entry.player}-${entry.mode}-${i}`}
+              entry={entry}
+              rank={i + 1}
+            />
           ))}
 
           {showStale && (

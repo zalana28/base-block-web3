@@ -11,6 +11,7 @@ import ScoreBoard from "./components/ScoreBoard.js";
 import GameOverModal from "./components/GameOverModal.js";
 import WalletGate from "./components/WalletGate.js";
 import Leaderboard from "./components/Leaderboard.js";
+import { invalidateLeaderboardCache } from "./hooks/useContractEvents.js";
 import ComboEffect from "./components/ComboEffect.js";
 import { FEATURES } from "./config/features.js";
 import FloatingScore, { type FloatScoreItem } from "./components/FloatingScore.js";
@@ -111,6 +112,13 @@ export default function App() {
   useEffect(() => {
     finalReset();
   }, [address, finalReset]);
+
+  // Instant leaderboard cache invalidation on successful on-chain submit
+  useEffect(() => {
+    if (txStatus === 'success' || finalStatus === 'success') {
+      invalidateLeaderboardCache();
+    }
+  }, [txStatus, finalStatus]);
 
   // Drag state — batched dalam satu object untuk hindari re-render cascade
   interface DragState {
