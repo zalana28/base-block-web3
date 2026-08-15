@@ -232,7 +232,7 @@ export function useGameState(
 
       return true;
     },
-    [phase, grid, streak, combo, addScore, markUsed, mode, score, level, clearingRows, clearingCols],
+    [phase, grid, streak, combo, addScore, markUsed, mode, score, level, clearingRows, clearingCols, pieces, totalCleared, totalMoves, maxCombo],
   );
 
   // ── Game-over juice: SFX + haptic once on transition to 'over' ──

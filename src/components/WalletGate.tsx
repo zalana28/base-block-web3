@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useConnect, useAccount, useDisconnect } from 'wagmi';
 import { useGameContract } from '../hooks/useGameContract.js';
+import { useBasename } from '../hooks/useBasename.js';
 
 const CONNECTOR_ICONS: Record<string, string> = {
   'Base Account': '🔗',
@@ -26,6 +27,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { startGame, status, error } = useGameContract();
+  const { displayName, isBasename } = useBasename(address);
 
   function handleConnectWallet() {
     setShowModal(true);
@@ -70,7 +72,7 @@ export default function WalletGate({ onReady, onViewLeaderboard }: Props) {
               CONNECTED
             </div>
             <p className="wallet-address">
-              {address.slice(0, 6)}...{address.slice(-4)}
+              {displayName} {isBasename && <span style={{ fontSize: '0.625rem' }}>🔵</span>}
             </p>
 
             <div className="mode-selector-label">SELECT MODE</div>
